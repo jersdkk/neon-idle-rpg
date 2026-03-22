@@ -15,7 +15,11 @@
     function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
 
-    gtag('config', 'G-0M94KXCZ3B');
+    const isIframe = window.self !== window.top;
+    gtag('config', 'G-0M94KXCZ3B', {
+      'custom_map': { 'dimension1': 'environment' },
+      'environment': isIframe ? 'itch_io_iframe' : 'direct_github'
+    });
 
     // Хелпер для трекинга событий сразу в обе системы (GA + Yandex)
     window.gtag_game_event = function (eventName, eventParams) {
@@ -44,7 +48,10 @@
       clickmap: true,
       trackLinks: true,
       accurateTrackBounce: true,
-      webvisor: true
+      webvisor: true,
+      userParams: {
+        environment: (window.self !== window.top ? 'itch_io_iframe' : 'direct_github')
+      }
     });
     console.log("[YM] Counter 108173823 initialized.");
   </script>
@@ -325,7 +332,7 @@
   </div>
 
   <!-- ══ Панель отладки (Debug) ══ -->
-  <div id="debug-panel">
+  <div id="debug-panel" style="display: none;">
     <button id="btn-dbg-next-level">Next Lvl</button>
     <button id="btn-dbg-lvl-35">Lvl 35</button>
     <button id="btn-dbg-add-points">+10 Points</button>

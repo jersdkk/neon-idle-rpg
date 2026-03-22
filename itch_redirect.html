@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Idle RPG</title>
+    <style>
+        /* Убираем все отступы, чтобы игра занимала весь экран на itch.io */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+        
+        /* Раскрываем фрейм на всю площадь */
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+        Этот файл нужен ТОЛЬКО для загрузки на itch.io.
+        Он открывает игру с вашего надежного домена GitHub Pages.
+        Это ГАРАНТИРУЕТ, что сохранения (localStorage) будут храниться на домене GitHub 
+        и не пропадут при обновлении серверов itch.io.
+    -->
+    <iframe src="https://jersdkk.github.io/neon-idle-rpg/" 
+            allow="autoplay; fullscreen; keyboard" 
+            id="game-frame">
+    </iframe>
+
+    <script>
+        // Небольшая проверка: если вдруг фрейм не загрузился, выведем кнопку
+        const frame = document.getElementById('game-frame');
+        setTimeout(() => {
+            try {
+                if (frame && !frame.contentWindow) {
+                    console.warn("Фрейм может быть заблокирован настройками безопасности.");
+                }
+            } catch(e) { /* Игнорируем ошибки кросс-доменного доступа */ }
+        }, 5000);
+    </script>
+</body>
+</html>
