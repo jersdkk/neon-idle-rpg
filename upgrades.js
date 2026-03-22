@@ -685,6 +685,21 @@
                 btn.click();
             }
         },
+        maxAllSkills: () => {
+            const screen = CONFIG.upgrades.screen2;
+            if (screen && screen.nodes) {
+                screen.nodes.forEach(node => {
+                    state.currentLevels[node.id] = node.maxLevel;
+                });
+                if (window.Game && window.Game.getPlayer) {
+                    applyAllUpgrades(window.Game.getPlayer());
+                    window.Game.updateUI();
+                    window.Game.updateSkillUI();
+                }
+                renderTree(state.activeTab);
+                updatePointsDisplay();
+            }
+        },
         // Сохранение и загрузка
         save: () => ({
             points: state.points,

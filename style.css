@@ -801,6 +801,53 @@ body {
   }
 }
 
+/* ── Стили окна оценки игры ───────────────────────────── */
+.rating-modal {
+  width: 360px !important;
+  border-color: #00F0FF !important;
+  box-shadow: 0 0 40px #00F0FF44, inset 0 0 20px #00F0FF44 !important;
+}
+
+.rating-stars {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  font-size: 32px;
+  cursor: pointer;
+}
+
+.star {
+  color: rgba(255, 255, 255, 0.2);
+  transition: all 0.2s;
+  text-shadow: 0 0 5px transparent;
+}
+
+.star.active,
+.star:hover,
+.star:hover ~ .star {
+  color: #00F0FF;
+  text-shadow: 0 0 10px #00F0FF;
+}
+
+/* Но в реальности мы хотим чтобы при ховере подсвечивались все звезды ДО текущей.
+   Для CSS это делается через :hover ~ .star (что подсвечивает ПОСЛЕ).
+   Поэтому в JS мы будем добавлять класс .active для всех звезд слева.
+*/
+
+.star.selected {
+  color: #00F0FF;
+  text-shadow: 0 0 15px #00F0FF;
+}
+
+.rating-modal textarea::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.rating-modal textarea:focus {
+  border-color: #00F0FF !important;
+  box-shadow: 0 0 15px #00F0FF22;
+}
+
 #victory-modal h2,
 #defeat-modal h2 {
   font-size: 22px;

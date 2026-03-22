@@ -59,6 +59,10 @@
     const giftBoxFill = document.getElementById('gift-box-fill');
     const giftBoxIcon = document.getElementById('gift-box');
     const skillsBar = document.getElementById('skills-bar');
+
+    const ratingOvl = document.getElementById('rating-overlay');
+    const btnSubmitRating = document.getElementById('btn-submit-rating');
+    const btnCloseRating = document.getElementById('btn-close-rating');
     const btnSkillLightning = document.getElementById('btn-skill-lightning');
     const btnSkillHaste = document.getElementById('btn-skill-haste');
     const btnSkillPower = document.getElementById('btn-skill-power');
@@ -396,6 +400,7 @@
             size: CONFIG.player.size,
             shownSkillsInfo: false,
             shownPrestigeInfo: false,
+            shownRatingInfo: false,
             targetEnemy: null,
             skills: { lightning: 0, haste: 0, power: 0, grenade: 0 },
             // animation
@@ -1242,6 +1247,13 @@
                     if (typeof window.gtag_game_event === 'function') {
                         window.gtag_game_event('prestige_unlocked', { level: pUnlockLvl });
                     }
+                }
+
+                // Окно оценки игры ПОСЛЕ прохождения 40 уровня
+                if (locationLevel === 40 && !player.shownRatingInfo && ratingOvl) {
+                    ratingOvl.classList.add('visible');
+                    player.shownRatingInfo = true;
+                    if (window.Game && window.Game.save) window.Game.save();
                 }
 
                 // Обновляем UI перед выходом
@@ -2505,6 +2517,40 @@
         }
     });
 
+    // ── Логика окна оценки игры ──────────────────────────────
+    if (btnSubmitRating) {
+        btnSubmitRating.addEventListener('click', () => {
+            console.log(`[RATING] User clicked Continue`);
+            
+            // Трекинг события в аналитику
+            if (typeof window.gtag_game_event === 'function') {
+                window.gtag_game_event('game_rated_continue', {
+                    level: locationLevel
+                });
+            }
+
+            if (ratingOvl) ratingOvl.classList.remove('visible');
+            saveGame();
+        });
+    }
+
+    if (btnCloseRating) {
+        btnCloseRating.addEventListener('click', () => {
+            if (ratingOvl) ratingOvl.classList.remove('visible');
+            saveGame();
+        });
+    }
+
+    // Закрытие по клику на фон (вне модального окна)
+    if (ratingOvl) {
+        ratingOvl.addEventListener('click', (e) => {
+            if (e.target === ratingOvl) {
+                ratingOvl.classList.remove('visible');
+                saveGame();
+            }
+        });
+    }
+
     resize();
 
     // ── Система сохранений ─────────────────────────────────
@@ -2533,6 +2579,7 @@
                 areaDamageMult: player.areaDamageMult,
                 shownSkillsInfo: player.shownSkillsInfo,
                 shownPrestigeInfo: player.shownPrestigeInfo,
+                shownRatingInfo: player.shownRatingInfo,
                 skills: player.skills,
                 giftBox: player.giftBox,
                 autoSkill: cbAutoSkill.checked
@@ -2655,6 +2702,7 @@
     // ── Обработчики отладки (Debug Handlers) ─────────────────
     const btnDbgNext = document.getElementById('btn-dbg-next-level');
     const btnDbgLvl35 = document.getElementById('btn-dbg-lvl-35');
+    const btnDbgMaxSkills = document.getElementById('btn-dbg-max-skills');
     const btnDbgPoints = document.getElementById('btn-dbg-add-points');
     const btnDbgEssence = document.getElementById('btn-dbg-add-essence');
     const btnDbgEssenceBig = document.getElementById('btn-dbg-add-essence-big');
@@ -2677,6 +2725,13 @@
     if (btnDbgLvl35) btnDbgLvl35.addEventListener('click', () => {
         SoundManager.playClick();
         initLevel(35, true);
+    });
+
+    if (btnDbgMaxSkills) btnDbgMaxSkills.addEventListener('click', () => {
+        SoundManager.playClick();
+        if (window.UpgradeManager && window.UpgradeManager.maxAllSkills) {
+            window.UpgradeManager.maxAllSkills();
+        }
     });
 
     if (btnDbgPoints) btnDbgPoints.addEventListener('click', () => {

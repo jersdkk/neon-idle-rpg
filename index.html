@@ -123,7 +123,8 @@
 
         <!-- Коробка с подарком -->
         <div id="gift-box-container" class="gift-box-container">
-          <div id="gift-box" class="gift-box"><img src="gift-box-icon.png" alt="Gift Box" style="width: 100%; height: 100%; object-fit: contain;"></div>
+          <div id="gift-box" class="gift-box"><img src="gift-box-icon.png" alt="Gift Box"
+              style="width: 100%; height: 100%; object-fit: contain;"></div>
           <div class="gift-box-progress">
             <div id="gift-box-fill" class="gift-box-fill"></div>
           </div>
@@ -332,9 +333,11 @@
   </div>
 
   <!-- ══ Панель отладки (Debug) ══ -->
+  <!--<div id="debug-panel" style="display: none;"></div>-->
   <div id="debug-panel" style="display: none;">
     <button id="btn-dbg-next-level">Next Lvl</button>
     <button id="btn-dbg-lvl-35">Lvl 35</button>
+    <button id="btn-dbg-max-skills" style="color: #B026FF;">Max Skills</button>
     <button id="btn-dbg-add-points">+10 Points</button>
     <button id="btn-dbg-add-essence">+100 Ess.</button>
     <button id="btn-dbg-add-essence-big">+20000 Ess.</button>
@@ -343,14 +346,43 @@
     <button id="btn-dbg-save" style="color: #00FF6A;">Save</button>
     <div id="debug-req-dps" style="color: #FFE400; font-size: 10px; margin-top: 5px; text-align: center;">Req. DPS: 0
     </div>
-    <div id="debug-enemy-count" style="color: #FF073A; font-size: 10px; margin-top: 2px; text-align: center;">Enemies: 0
+    <div id="debug-enemy-count" style="color: #FF073A; font-size: 10px; margin-top: 2px; text-align: center;">Enemies:
+      0
     </div>
     <div id="debug-boss-hp" style="color: #24dbe9; font-size: 10px; margin-top: 2px; text-align: center;">Boss HP: 0
     </div>
   </div>
 
 
-  <div id="upgrade-tooltip"></div>
+  <!-- ══ Оверлей оценки игры ══ -->
+  <div id="rating-overlay" class="overlay">
+    <div class="skills-modal rating-modal"
+      style="border-color: #00F0FF; box-shadow: 0 0 20px #00F0FF44; position: relative; width: 380px;">
+      <button id="btn-close-rating" class="btn-close-map"
+        style="top: 15px; right: 15px; transform: none; background: rgba(255, 7, 58, 0.2); border-color: #FF073A;">X</button>
+
+      <h2 style="color: #00F0FF; text-shadow: 0 0 10px #00F0FF; margin-top: 15px; font-size: 20px;">Thank You!</h2>
+      <p style="font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 20px; padding: 0 10px;">
+        I am very glad that you are playing my game! If it's not too much trouble, please leave a comment on itch.io and
+        share your opinion. I would be happy to hear any suggestions for improvement. And I will be truly happy if you
+        rate the game! : )
+      </p>
+
+      <div class="rating-stars" style="margin-bottom: 25px;">
+        <span class="star selected">★</span>
+        <span class="star selected">★</span>
+        <span class="star selected">★</span>
+        <span class="star selected">★</span>
+        <span class="star selected">★</span>
+      </div>
+
+      <button id="btn-submit-rating" class="btn-future-mechanic available"
+        style="position: relative; left: 0; top: 0; width: 160px; height: 60px; margin: 0 auto; display: flex; transform: none; border-color: #00F0FF;">
+        <span class="btn-future-label" style="font-size: 10px; color: #00F0FF; margin-bottom: 2px;">Game</span>
+        <span class="btn-future-value" style="font-size: 20px; color: #fff;">Continue</span>
+      </button>
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script src="uber_bosses_config.js"></script>
