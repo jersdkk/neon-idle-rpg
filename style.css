@@ -1,0 +1,1355 @@
+/* ── Импорт шрифта Orbitron ──────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+/* ── Глобальные переменные дизайна ────────────────────────── */
+:root {
+  --neon-white-bg: rgba(255, 255, 255, 0.1);
+  --neon-white-border: 2px solid rgba(255, 255, 255, 0.8);
+  --neon-white-radius: 6px;
+  --neon-white-shadow: 0 0 8px rgba(255, 255, 255, 0.5), inset 0 0 4px rgba(255, 255, 255, 0.2);
+  --panel-bg: rgba(24, 25, 56, 0.8);
+}
+
+/* ── Сброс и базовые стили ──────────────────────────────── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050510;
+  font-family: 'Orbitron', sans-serif;
+  color: #E0E0FF;
+  user-select: none;
+  /* Запрещаем выделение текста во всей игре */
+}
+
+/* ════════════════════════════════════════════════════════
+   ОСНОВНАЯ КОМПОНОВКА (flex column: игра сверху, прокачка снизу)
+═══════════════════════════════════════════════════════════ */
+#app {
+  display: flex;
+  flex-direction: column;
+  /* Устанавливаем современное соотношение сторон 9:19.5 (как у iPhone) */
+  height: 100dvh;
+  width: auto;
+  aspect-ratio: 9 / 19.5;
+
+  /* Ограничиваем максимальную ширину для десктопов, но разрешаем сужаться на мобилках */
+  max-width: 100vw;
+  min-width: 320px;
+
+  margin: 0 auto;
+  background: #050510;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Игровая секция — занимает свободное пространство ────── */
+#game-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Убраны горизонтальные отступы — панели статов должны занимать всю ширину */
+  padding: 8px 0 4px;
+  gap: 4px;
+  overflow: hidden;
+}
+
+/* ── Секция прокачки — фиксированная высота ──────────────── */
+#upgrade-section {
+  flex: 0 0 38vh;
+  height: 38vh;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a1a;
+  border-top: 1px solid #00F0FF33;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ════════════════════════════════════════════════════════
+   TOP BAR (уровень + очки + XP бар)
+═══════════════════════════════════════════════════════════ */
+/* ── Строка ресурсов (Чипы) ───────────────────────────── */
+#resource-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 10px;
+  margin-top: 4px;
+}
+
+.resource-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(12px, 1.6vh, 16px);
+  /* Увеличено на 8px (было 10px) */
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.chip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  /* Увеличено на 8px (было 11px) */
+  height: 100%;
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+/* Символ ромба визуально меньше звезды, поэтому увеличиваем его отдельно для выравнивания */
+#upgrade-points-label .chip-icon {
+  font-size: 22px;
+}
+
+/* ── Строка прогресса (Уровень + XP) ───────────────────── */
+#progress-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  margin-top: 4px;
+}
+
+#level-label {
+  position: absolute;
+  left: 2.4vh;
+  /* Адаптивный отступ */
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(8px, 1vh, 10px);
+  /* Адаптивный шрифт */
+  letter-spacing: 0.1vh;
+  color: #ffffff;
+  text-shadow: 0 0 0.8vh rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#xp-bar-container-wrapper {
+  width: 65%;
+  /* Ширина остается в процентах для гибкости */
+  height: 2.8vh;
+  /* Адаптивная высота */
+  position: relative;
+  /* Адаптивное свечение */
+  filter: drop-shadow(0 0 0.4vh rgba(255, 255, 255, 0.5)) drop-shadow(0 0 0.8vh rgba(255, 255, 255, 0.3));
+}
+
+#xp-bar-container {
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.95);
+
+  /* АДАПТИВНАЯ ГЕОМЕТРИЯ (через vh) */
+  clip-path: polygon(1.2vh 0, calc(100% - 1.2vh) 0, 100% 50%, calc(100% - 1.2vh) 100%, 1.2vh 100%, 0 50%);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+#xp-bar-inner {
+  width: calc(100% - 4px);
+  /* Толщина обводки 2px */
+  height: calc(100% - 4px);
+  background: rgba(10, 5, 20, 0.95);
+
+  /* Внутренний темный контур: чуть меньше скос, чтобы стороны были параллельны (10px) */
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
+
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* ОБЛАСТЬ МАСКИ ДЛЯ ЗАЛИВКИ (с отступом 3px от краев) */
+#xp-bar-fill-area {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  right: 3px;
+
+  /* Еще меньше скос (8px), чтобы форма заливки идеально повторяла пропорции рамки */
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+
+  overflow: hidden;
+  z-index: 1;
+}
+
+#xp-bar-fill {
+  height: 100%;
+  width: 0%;
+
+  /* Розовый неон */
+  background: linear-gradient(90deg, #FF00FF, #D000D0);
+  transition: width 0.35s ease;
+  box-shadow: 0 0 15px #FF00FFaa;
+
+  /* Уже не нужно clip-path здесь, так как верхний слой всё обрежет правильно */
+}
+
+#xp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 24px;
+  /* Отступ справа для текста XP */
+  font-size: clamp(8px, 0.9vh, 9px);
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 4px #000;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Инфо о локации ───────────────────────────────────── */
+#location-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  /* Горизонтальный padding перенесен сюда из game-section */
+  padding: 0 10px;
+}
+
+#location-label {
+  font-size: clamp(14px, 1.8vh, 18px);
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #FF073A;
+  text-shadow: 0 0 8px #FF073A, 0 0 22px #FF073A66;
+}
+
+.btn-prev-small {
+  background: rgba(255, 7, 58, 0.1);
+  border: 1px solid #FF073A66;
+  color: #FF073A;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.btn-prev-small:hover {
+  background: #FF073A22;
+  border-color: #FF073A;
+  box-shadow: 0 0 10px #FF073A44;
+}
+
+/* ── Холст ──────────────────────────────────────────────── */
+#game-canvas {
+  display: block;
+  border-radius: 4px;
+  /* Холст займёт всё оставшееся место по высоте */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ── Характеристики ─────────────────────────────────────── */
+#stats-bar {
+  font-size: 10px;
+  color: #666;
+  letter-spacing: 1px;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+#stats-bar span {
+  color: #00F0FF;
+}
+
+/* ── Стилизованный UI (Характеристики и Навыки) ── */
+#auto-skill-container {
+  display: none;
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: 0.8vh;
+  align-self: stretch;
+  padding: 0 1vw;
+  box-sizing: border-box;
+}
+
+#auto-skill-container label {
+  color: #fff;
+  font-size: clamp(11px, 1.4vh, 15px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5vh;
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1vh;
+}
+
+.dashboard-row {
+  display: flex;
+  gap: 0.4vh;
+  margin-top: 0.8vh;
+  width: 100%;
+  align-items: stretch;
+  align-self: stretch;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+#stats-bar {
+  background: var(--panel-bg);
+  border: 0.2vh solid rgba(255, 255, 255, 0.8);
+  border-radius: 0.6vh;
+  box-shadow: 0 0 0.8vh rgba(255, 255, 255, 0.5), inset 0 0 0.4vh rgba(255, 255, 255, 0.2);
+  padding: 0.6vh 0.8vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vh;
+  justify-content: center;
+  font-size: clamp(9px, 1.1vh, 12px);
+  font-weight: 500;
+  font-family: 'Orbitron', sans-serif;
+  color: #fff;
+  flex: 1;
+  min-width: 140px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.stats-grid-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  text-align: left;
+  padding-bottom: 0.4vh;
+  border-bottom: 0.1vh solid rgba(255, 255, 255, 0.1);
+  justify-items: center;
+  align-items: center;
+}
+
+.stats-grid-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  padding-top: 0.2vh;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6vh;
+  white-space: nowrap;
+}
+
+.stat-icon {
+  width: 1.4vh;
+  height: 1.4vh;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.stat-label-small {
+  font-size: 0.9vh;
+  font-weight: 800;
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  opacity: 0.8;
+  letter-spacing: 0.05vh;
+}
+
+.stat-unit {
+  font-size: 0.8vh;
+  color: #aaa;
+}
+
+#skills-bar {
+  display: none;
+  background: var(--panel-bg);
+  border: 0.2vh solid rgba(255, 255, 255, 0.8);
+  border-radius: 0.6vh;
+  box-shadow: 0 0 0.8vh rgba(255, 255, 255, 0.5), inset 0 0 0.4vh rgba(255, 255, 255, 0.2);
+  padding: 0.6vh;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4vh;
+  align-items: center;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.skill-buttons-row {
+  display: flex;
+  gap: 0.4vh;
+  justify-content: center;
+  width: 100%;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  margin-bottom: 0.2vh;
+}
+
+.skill-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4vh;
+}
+
+.skill-action-btn {
+  width: 4.2vh !important;
+  height: 4.2vh !important;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 1.6vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.skill-action-btn img {
+  width: 2.6vh;
+  height: 2.6vh;
+  object-fit: contain;
+}
+
+.skill-cd-overlay {
+  position: absolute;
+  bottom: 0.2vh;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 1.1vh;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 2px #000;
+  pointer-events: none;
+  font-family: 'Orbitron', sans-serif;
+}
+
+.skill-progress-container {
+  width: 100%;
+  height: 0.4vh;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0.2vh;
+  overflow: hidden;
+  display: block;
+}
+
+.skill-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 0.2vh;
+}
+
+.skill-cooldown-text {
+  font-size: 0.9vh;
+  margin-top: 0.2vh;
+}
+
+
+/* ════════════════════════════════════════════════════════
+   ПАНЕЛЬ ПРОКАЧКИ
+═══════════════════════════════════════════════════════════ */
+
+/* Область дерева апгрейдов */
+#upgrade-tree-area {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: auto;
+  /* Включаем скролл внутри области дерева */
+  scrollbar-width: thin;
+  scrollbar-color: #00F0FF44 transparent;
+  cursor: grab;
+}
+
+#upgrade-tree-area.grabbing {
+  cursor: grabbing;
+}
+
+#upgrade-tree-area::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+#upgrade-tree-area::-webkit-scrollbar-thumb {
+  background: #00F0FF44;
+  border-radius: 2px;
+}
+
+#upgrade-svg {
+  display: block;
+  /* Убрано жесткое ограничение в 100%, чтобы svg мог расширяться для скролла */
+}
+
+/* ── Контейнер Вкладки Престижа ─── */
+#prestige-tab-content {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #FFE40044 transparent;
+}
+
+#prestige-tab-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+#prestige-tab-content::-webkit-scrollbar-thumb {
+  background: #FFE40044;
+  border-radius: 2px;
+}
+
+/* Кнопки навигации 1–5 */
+#upgrade-tabs {
+  flex: 0 0 6vh;
+  height: 6vh;
+  min-height: 48px;
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  border-top: 1px solid #00F0FF22;
+  box-sizing: border-box;
+}
+
+.tab-btn {
+  flex: 1 1 0;
+  height: 100%;
+  background: #0a0a1a;
+  border: var(--neon-white-border);
+  border-radius: var(--neon-white-radius);
+  box-shadow: var(--neon-white-shadow);
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(11px, 1.5vh, 16px);
+  font-weight: 700;
+  color: #889;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.tab-btn:hover {
+  background: #141442;
+  color: #00F0FF;
+}
+
+.tab-btn.active {
+  background: #141442;
+  color: #00F0FF;
+  box-shadow: inset 0 -2px 0 #00F0FF;
+}
+
+/* Красный кружок уведомления */
+.tab-btn.has-notification::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  background: #FF073A;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #FF073A;
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 7, 58, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(255, 7, 58, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 7, 58, 0);
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   УЗЛЫ АПГРЕЙДОВ (отрисовываются через SVG + foreignObject)
+═══════════════════════════════════════════════════════════ */
+.upg-node {
+  width: 5.2vh;
+  height: 5.2vh;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+  font-family: 'Orbitron', sans-serif;
+}
+
+.upg-node:hover {
+  transform: scale(1.08);
+}
+
+/* Куплен / максимальный уровень */
+.upg-node.maxed {
+  background: #0a2a4a;
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5), inset 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+/* Доступен для покупки */
+.upg-node.available {
+  background: #0a2a0a;
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5), inset 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+/* Заблокирован (нет родителя) */
+.upg-node.locked {
+  background: #2a0a0a;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Доступен, но не хватает очков */
+.upg-node.no-points {
+  background: #1a1a2a;
+  border-color: #444466;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.upg-node-label {
+  font-size: 0.8vh;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #ccc;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.upg-node-lvl {
+  font-size: 0.9vh;
+  font-weight: 900;
+  color: #fff;
+}
+
+/* ════════════════════════════════════════════════════════
+   ТУЛТИП
+═══════════════════════════════════════════════════════════ */
+#upgrade-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 200;
+  background: #0d0d22ee;
+  border: 1px solid #00F0FF55;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #ccc;
+  pointer-events: none;
+  max-width: 180px;
+  box-shadow: 0 0 16px #00F0FF22;
+}
+
+/* ── Таймер босса ────────────────────────────────────────── */
+#boss-timer {
+  font-family: 'Orbitron', sans-serif;
+  color: #FF073A;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 4px;
+  text-shadow: 0 0 12px #FF073A;
+  z-index: 5;
+}
+
+/* ── Оверлеи (победа, проигрыш, анлок) ───────────────────────────── */
+#victory-overlay,
+#defeat-overlay,
+#skills-unlock-overlay,
+#prestige-unlock-overlay,
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(5, 5, 16, 0.85);
+  backdrop-filter: blur(10px);
+  /* По умолчанию скрыты */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+#boss-map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  background: #050510;
+  /* Солидный фон, заменяет весь экран */
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#boss-map-overlay.visible {
+  display: flex !important;
+}
+
+#victory-overlay.visible,
+#defeat-overlay.visible,
+#skills-unlock-overlay.visible,
+#prestige-unlock-overlay.visible,
+#boss-map-overlay.visible,
+.overlay.visible {
+  display: flex !important;
+}
+
+.skills-modal {
+  background: #050510;
+  padding: 30px;
+  border-radius: 12px;
+  border: 2px solid #B026FF;
+  box-shadow: 0 0 40px #B026FF44, inset 0 0 20px #B026FF44;
+  text-align: center;
+  color: #fff;
+  width: 320px;
+}
+
+.skills-modal h2 {
+  margin-bottom: 20px;
+}
+
+.skills-modal p {
+  color: #ccc;
+  font-size: 14px;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+#victory-modal,
+#defeat-modal {
+  background: linear-gradient(135deg, #0D0D2B 0%, #1A0A2E 100%);
+  border: 1px solid #00F0FF66;
+  border-radius: 16px;
+  padding: 36px 44px;
+  text-align: center;
+  box-shadow: 0 0 40px #00F0FF22, 0 0 80px #B026FF11;
+  animation: modal-pop 0.4s ease;
+}
+
+#defeat-modal {
+  border-color: #FF073A;
+  box-shadow: 0 0 30px #FF073A33;
+}
+
+@keyframes modal-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+#victory-modal h2,
+#defeat-modal h2 {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+#victory-modal h2 {
+  color: #00F0FF;
+  text-shadow: 0 0 12px #00F0FF, 0 0 30px #00F0FF66;
+}
+
+#defeat-modal h2 {
+  color: #FF073A;
+  text-shadow: 0 0 12px #FF073A, 0 0 30px #FF073A66;
+}
+
+#victory-modal p,
+#defeat-modal p {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 20px;
+}
+
+.btn-neon {
+  display: inline-block;
+  padding: 10px 22px;
+  margin: 0 6px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.25s ease;
+}
+
+#btn-repeat,
+#btn-restart-defeat {
+  background: transparent;
+  color: #00F0FF;
+  border: 1.5px solid #00F0FF;
+  box-shadow: 0 0 10px #00F0FF44;
+}
+
+#btn-repeat:hover,
+#btn-restart-defeat:hover {
+  background: #00F0FF22;
+  box-shadow: 0 0 20px #00F0FF66;
+}
+
+#btn-next,
+#btn-back-defeat {
+  background: linear-gradient(135deg, #00F0FF, #00BFFF);
+  color: #050510;
+  box-shadow: 0 0 14px #00F0FF66;
+}
+
+#btn-next:hover,
+#btn-back-defeat:hover {
+  box-shadow: 0 0 28px #00F0FFaa;
+  transform: translateY(-2px);
+}
+
+/* ── Стиль кнопки "Следующий уровень" перед боссом ── */
+.btn-boss-next {
+  background: linear-gradient(135deg, #FF8C00, #FF4500) !important;
+  animation: pulse-boss 1.5s infinite alternate ease-in-out;
+  border: 1px solid #FF8C00 !important;
+}
+
+@keyframes pulse-boss {
+  from {
+    box-shadow: 0 0 10px #FF8C0066, inset 0 0 5px #FF8C0033;
+  }
+
+  to {
+    box-shadow: 0 0 30px #FF4500aa, inset 0 0 10px #FF450066;
+  }
+}
+
+/* Кнопка поражения в красный если нужно */
+#btn-restart-defeat {
+  color: #FF073A;
+  border-color: #FF073A;
+  box-shadow: 0 0 10px #FF073A44;
+}
+
+#btn-restart-defeat:hover {
+  background: #FF073A22;
+  box-shadow: 0 0 20px #FF073A66;
+}
+
+#btn-back-defeat {
+  background: linear-gradient(135deg, #FF073A, #FF4500);
+}
+
+#btn-back-defeat:hover {
+  box-shadow: 0 0 28px #FF073Aaa;
+}
+
+/* ── Состояние кнопок навыков при перезарядке ── */
+.btn-neon.cooldown {
+  background: rgba(20, 20, 30, 0.8) !important;
+  color: #555 !important;
+  border-color: #333 !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* Цвета для конкретных навыков */
+#btn-skill-lightning,
+#btn-skill-haste,
+#btn-skill-power,
+#btn-skill-grenade {
+  width: 85px;
+  text-align: center;
+  margin: 0;
+  padding: 6px 4px;
+  font-size: 8px;
+  /* Убираем margin, так как зазоры заданы в контейнере */
+}
+
+#btn-skill-lightning {
+  color: #FFE400;
+  border: 1.5px solid #FFE400;
+  box-shadow: 0 0 10px #FFE40044;
+  background: transparent;
+}
+
+#btn-skill-lightning:hover:not(.cooldown) {
+  background: #FFE40022;
+  box-shadow: 0 0 20px #FFE40066;
+}
+
+#btn-skill-haste {
+  color: #00F0FF;
+  border: 1.5px solid #00F0FF;
+  box-shadow: 0 0 10px #00F0FF44;
+  background: transparent;
+}
+
+#btn-skill-haste:hover:not(.cooldown) {
+  background: #00F0FF22;
+  box-shadow: 0 0 20px #00F0FF66;
+}
+
+#btn-skill-power {
+  color: #FF073A;
+  border: 1.5px solid #FF073A;
+  box-shadow: 0 0 10px #FF073A44;
+  background: transparent;
+}
+
+#btn-skill-power:hover:not(.cooldown) {
+  background: #FF073A22;
+  box-shadow: 0 0 20px #FF073A66;
+}
+
+#btn-skill-grenade {
+  color: #FF8C00;
+  border: 1.5px solid #FF8C00;
+  box-shadow: 0 0 10px #FF8C0044;
+  background: transparent;
+}
+
+#btn-skill-grenade:hover:not(.cooldown) {
+  background: #FF8C0022;
+  box-shadow: 0 0 20px #FF8C0066;
+}
+
+/* ── Прогресс-бары длительности навыков ── */
+.skill-progress-container {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.skill-progress-container.active {
+  opacity: 1;
+}
+
+.skill-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+#fill-skill-haste {
+  background: #00F0FF;
+  box-shadow: 0 0 8px #00F0FF;
+}
+
+#fill-skill-power {
+  background: #FF073A;
+  box-shadow: 0 0 8px #FF073A;
+}
+
+/* ── Панель отладки (Debug Panel) ── */
+#debug-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  /* Снова показываем панель */
+  flex-direction: column;
+  gap: 5px;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#debug-panel button {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+#debug-panel button:hover {
+  background: #555;
+}
+
+/* ── Кнопка будущей механики (на месте красного квадрата) ── */
+.btn-future-mechanic {
+  position: absolute;
+  left: 10px;
+  top: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  z-index: 10;
+  font-family: 'Orbitron', sans-serif;
+  line-height: 1;
+  border: 2px solid transparent;
+}
+
+/* Состояние: Заблокировано */
+.btn-future-mechanic.locked {
+  background: #141420;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.btn-future-mechanic.locked .btn-future-label {
+  color: #888;
+}
+
+.btn-future-mechanic.locked .btn-future-value {
+  color: #888;
+}
+
+/* Состояние: Доступно */
+.btn-future-mechanic.available {
+  background: #141420;
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 8px rgba(25, 255, 112, 0.3), inset 0 0 4px rgba(255, 255, 255, 0.1);
+}
+
+.btn-future-mechanic.available:hover {
+  transform: scale(1.05);
+  background: #0f3d0f;
+  box-shadow: 0 0 12px rgba(25, 255, 112, 0.5);
+}
+
+.btn-future-mechanic.available .btn-future-label {
+  color: #00FF6A;
+}
+
+.btn-future-mechanic.available .btn-future-value {
+  color: #fff;
+}
+
+.btn-future-label {
+  font-size: 6px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.btn-future-value {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* ── Карта Боссов ───────────────────────────────────────── */
+#boss-map-overlay {
+  z-index: 1000;
+  /* Самый высокий приоритет поверх всего */
+}
+
+.boss-map-modal {
+  width: 100%;
+  height: 100%;
+  background: #050510;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 10px 10px;
+  /* Уменьшаем верхний отступ, теперь там хедер */
+  overflow: hidden;
+}
+
+.boss-map-header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  margin-bottom: 20px;
+  min-height: 40px;
+}
+
+.map-progress {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #00FF6A;
+  font-size: 14px;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(0, 255, 106, 0.4);
+}
+
+.map-title {
+  color: #fff;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin: 0;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+#boss-map-container {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#boss-map-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+#boss-map-svg line {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2;
+  transition: all 0.3s;
+}
+
+#boss-map-svg line.available {
+  stroke: rgba(25, 255, 112, 0.4);
+  filter: drop-shadow(0 0 4px #00FF6A);
+}
+
+#boss-map-svg line.active {
+  stroke: #00FF6A;
+  stroke-width: 3;
+}
+
+#boss-map-nodes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+/* Кнопка закрытия */
+.btn-close-map {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #1a4a2a;
+  /* Более темный, менее яркий зеленый */
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  /* Свечение почти убрано */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-close-map:hover {
+  transform: translateY(-50%) scale(1.1);
+  background: #256a3c;
+  box-shadow: 0 0 8px rgba(0, 255, 106, 0.2);
+}
+
+/* Переиспользуем стиль узла для боссов на карте */
+.map-node {
+  position: absolute;
+  width: 53px;
+  height: 53px;
+  transform: translate(-50%, -50%);
+  /* Центрирование узла */
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.map-node:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  /* Теперь не прыгает */
+  z-index: 10;
+}
+
+/* Принудительная синхронизация цветов с системой апгрейдов (данные из visuals.js) */
+.map-node.locked {
+  background: #10101b !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.map-node.available {
+  background: #080f1b !important;
+  border-color: #25da70ff !important;
+  box-shadow: 0 0 8px rgba(37, 218, 112, 0.3);
+}
+
+.map-node.maxed {
+  background: #0A2A4A !important;
+  border-color: #24dbe9ff !important;
+  box-shadow: 0 0 8px rgba(36, 219, 233, 0.3);
+}
+
+.map-node .upg-node-lvl {
+  font-size: 26px;
+  /* Больше эмодзи */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Коробка с подарком (Gift Box) ───────────────────── */
+.gift-box-container {
+  position: absolute;
+  right: 15px;
+  top: -4px;
+  /* Выравнивание с кнопкой locat. */
+  width: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 100;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.2s;
+}
+
+.gift-box-container:hover {
+  transform: scale(1.1);
+}
+
+.gift-box {
+  width: 44px;
+  height: 44px;
+  position: relative;
+  margin-bottom: 5px;
+}
+
+.gift-box-container.full .gift-box {
+  animation: shake-gift 0.5s infinite ease-in-out;
+}
+
+.gift-box-progress {
+  width: 44px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.gift-box-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #FFD700, #FFA500);
+  box-shadow: 0 0 8px #FFD700;
+  transition: width 0.3s ease-out;
+}
+
+.gift-box-container.full .gift-box-fill {
+  background: linear-gradient(90deg, #00FF6A, #00BFFF);
+  box-shadow: 0 0 10px #00FF6A;
+}
+
+@keyframes shake-gift {
+  0% {
+    transform: rotate(0deg) scale(1.1);
+  }
+
+  25% {
+    transform: rotate(5deg) scale(1.15);
+  }
+
+  50% {
+    transform: rotate(0deg) scale(1.1);
+  }
+
+  75% {
+    transform: rotate(-5deg) scale(1.15);
+  }
+
+  100% {
+    transform: rotate(0deg) scale(1.1);
+  }
+}

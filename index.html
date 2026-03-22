@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon RPG — Auto Combat</title>
+  <meta name="description" content="Neon-style auto-combat RPG game with geometric enemies">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0M94KXCZ3B"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-0M94KXCZ3B');
+
+    // Хелпер для трекинга событий сразу в обе системы (GA + Yandex)
+    window.gtag_game_event = function (eventName, eventParams) {
+      console.log(`[Analytics Event] ${eventName}`, eventParams);
+      // Google Analytics
+      if (typeof gtag === 'function') {
+        gtag('event', eventName, eventParams);
+      }
+      // Yandex Metrika
+      if (typeof ym === 'function') {
+        ym(108173823, 'reachGoal', eventName, eventParams);
+      }
+    };
+  </script>
+
+  <!-- Yandex.Metrika counter -->
+  <script type="text/javascript">
+    (function (m, e, t, r, i, k, a) {
+      m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
+      m[i].l = 1 * new Date();
+      for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
+      k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+    })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=108173823', 'ym');
+
+    ym(108173823, "init", {
+      clickmap: true,
+      trackLinks: true,
+      accurateTrackBounce: true,
+      webvisor: true
+    });
+    console.log("[YM] Counter 108173823 initialized.");
+  </script>
+  <noscript>
+    <div><img src="https://mc.yandex.ru/watch/108173823" style="position:absolute; left:-9999px;" alt="" /></div>
+  </noscript>
+  <!-- /Yandex.Metrika counter -->
+
+</head>
+
+<body>
+
+  <!-- Вся игровая обёртка -->
+  <div id="app">
+
+    <!-- ══ ВЕРХНЯЯ ЧАСТЬ — игровой экран ══ -->
+    <div id="game-section">
+
+      <!-- Уровень игрока + XP бар -->
+      <div id="top-ui-area" style="width: 100%; position: relative; height: 52px;">
+        <!-- Первая строка: Ресурсы (Очки и Эссенция) -->
+        <div id="resource-row">
+          <div id="upgrade-points-label" class="resource-chip">
+            <span class="chip-icon" style="color: #FFE400;">⟡</span>
+            <span id="upgrade-points">0</span>
+          </div>
+          <div id="essence-points-label" class="resource-chip" style="display: none;">
+            <span class="chip-icon" style="color: #B026FF;">✧</span>
+            <span id="essence-points">0</span>
+          </div>
+        </div>
+
+        <!-- Вторая строка: Уровень и XP -->
+        <div id="progress-row">
+          <div id="xp-bar-container-wrapper">
+            <div id="xp-bar-container">
+              <div id="xp-bar-inner">
+                <div id="xp-bar-fill-area">
+                  <div id="xp-bar-fill"></div>
+                </div>
+                <div id="level-label">LVL 1</div>
+                <div id="xp-text">0 / 50 XP</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Кнопка назад (выровнена по высоте двух строк) -->
+        <button id="btn-prev-level" class="btn-prev-small"
+          style="position: absolute; right: 10px; top: 35px; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; padding: 4px; width: 38px; height: 38px; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.8); border-radius: 6px; cursor: pointer; box-shadow: 0 0 8px rgba(255, 255, 255, 0.5), inset 0 0 4px rgba(255, 255, 255, 0.2);">
+          <img src="image/back.png" alt="back" style="width: 100%; height: 100%; object-fit: contain;">
+        </button>
+      </div>
+
+      <!-- Уровень локации -->
+      <div id="location-row"
+        style="position: relative; width: 100%; display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 0 10px; box-sizing: border-box;">
+
+        <!-- Кнопка будущей механики -->
+        <button id="btn-future-mechanic" class="btn-future-mechanic">
+          <span class="btn-future-label">locat.</span>
+          <span class="btn-future-value">100</span>
+        </button>
+
+        <div id="location-label">Location 1</div>
+        <div id="uber-boss-name"
+          style="display: none; color: #B026FF; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px #B026FF;">
+          Boss Name</div>
+
+        <!-- Коробка с подарком -->
+        <div id="gift-box-container" class="gift-box-container">
+          <div id="gift-box" class="gift-box"><img src="gift-box-icon.png" alt="Gift Box" style="width: 100%; height: 100%; object-fit: contain;"></div>
+          <div class="gift-box-progress">
+            <div id="gift-box-fill" class="gift-box-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Таймер (только на боссе) -->
+      <div id="boss-timer" style="display: none;">30.0</div>
+
+      <!-- Игровой холст -->
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Чекбокс авто-скиллов над панелью -->
+      <div id="auto-skill-container">
+        <label>
+          <input type="checkbox" id="cb-auto-skill" checked> use auto
+        </label>
+      </div>
+
+      <!-- Контейнер для Характеристик и Навыков (строка) -->
+      <div class="dashboard-row">
+
+        <!-- Характеристики (Стилизованные) -->
+        <div id="stats-bar">
+
+          <!-- Первая строка: ДПС, Урон, Скорость -->
+          <div class="stats-grid-row">
+            <div class="stat-item" title="DPS">
+              <span class="stat-label-small">DPS</span>
+              <span id="stat-dps" style="font-weight: bold;">0</span>
+            </div>
+            <div class="stat-item" title="Damage">
+              <img src="image/attack.png" class="stat-icon" alt="Dmg">
+              <span id="stat-dmg" style="font-weight: bold;">10</span>
+            </div>
+            <div class="stat-item" title="Attack Speed">
+              <img src="image/attack%20speed.png" class="stat-icon" alt="ASpd">
+              <div><span id="stat-aspd" style="font-weight: bold;">1.00</span><span class="stat-unit">/s</span></div>
+            </div>
+          </div>
+
+          <!-- Вторая строка: Крит Шанс, Крит Множитель, Эссенция -->
+          <div class="stats-grid-row">
+            <div class="stat-item" title="Crit Chance">
+              <img src="image/crit%20chanse.png" class="stat-icon" alt="Crit Chance">
+              <div><span id="stat-crit-chance" style="font-weight: bold;">0</span><span class="stat-unit">%</span></div>
+            </div>
+            <div class="stat-item" title="Crit Damage">
+              <img src="image/crit%20damag.png" class="stat-icon" alt="Crit Damage">
+              <div><span class="stat-unit">x</span><span id="stat-crit-dmg" style="font-weight: bold;">1.5</span></div>
+            </div>
+            <div class="stat-item" title="Essence Multiplier">
+              <span style="font-size:1.15vh; color: #B026FF; font-weight: bold;">✧</span>
+              <div><span class="stat-unit">x</span><span id="stat-ess-mult" style="font-weight: bold;">1.00</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Панель активных навыков -->
+        <div id="skills-bar">
+          <div class="skill-buttons-row">
+
+            <div id="container-skill-lightning" class="skill-slot" style="display: none;">
+              <button id="btn-skill-lightning" class="btn-neon skill-action-btn">⚡</button>
+            </div>
+
+            <div id="container-skill-haste" class="skill-slot" style="display: none;">
+              <div class="skill-progress-container">
+                <div id="fill-skill-haste" class="skill-progress-fill"></div>
+              </div>
+              <button id="btn-skill-haste" class="btn-neon skill-action-btn">
+                <img src="image/attack%20speed.png" alt="Haste">
+              </button>
+            </div>
+
+            <div id="container-skill-power" class="skill-slot" style="display: none;">
+              <div class="skill-progress-container">
+                <div id="fill-skill-power" class="skill-progress-fill"></div>
+              </div>
+              <button id="btn-skill-power" class="btn-neon skill-action-btn">
+                <img src="image/attack.png" alt="Power">
+              </button>
+            </div>
+
+            <div id="container-skill-grenade" class="skill-slot" style="display: none;">
+              <button id="btn-skill-grenade" class="btn-neon skill-action-btn">💣</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ НИЖНЯЯ ЧАСТЬ — панель прокачки ══ -->
+    <div id="upgrade-section">
+
+      <!-- Область дерева апгрейдов -->
+      <div id="upgrade-tree-area">
+        <!-- Здесь отрисовывается SVG-дерево -->
+        <svg id="upgrade-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <!-- Нижние кнопки навигации 1–5 -->
+      <div id="upgrade-tabs">
+        <button class="tab-btn active" id="tab-1" data-tab="1">1</button>
+        <button class="tab-btn" id="tab-2" data-tab="2">2</button>
+        <button class="tab-btn" id="tab-3" data-tab="3">3</button>
+        <button class="tab-btn" id="tab-4" data-tab="4">4</button>
+        <button class="tab-btn" id="tab-5" data-tab="5">5</button>
+      </div>
+    </div>
+
+    <!-- ══ Оверлей карты боссов ══ -->
+    <div id="boss-map-overlay" class="overlay">
+      <div class="boss-map-modal">
+        <div class="boss-map-header">
+          <div id="boss-map-progress" class="map-progress">0/14</div>
+          <h2 class="map-title">Boss Map</h2>
+          <button id="btn-close-boss-map" class="btn-close-map">X</button>
+        </div>
+        <div id="boss-map-container">
+          <svg id="boss-map-svg"></svg>
+          <div id="boss-map-nodes"></div>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- Конец #app -->
+
+  <!-- ══ Оверлей победы ══ -->
+  <div id="victory-overlay">
+    <div id="victory-modal">
+      <h2>🏆 Victory!</h2>
+      <p>You have cleared the level</p>
+      <p id="victory-xp-text">XP gained: <span id="victory-xp-gained">0</span></p>
+      <button class="btn-neon" id="btn-repeat">Restart</button>
+      <button class="btn-neon" id="btn-next">Next level</button>
+    </div>
+  </div>
+
+  <!-- ══ Оверлей победы над УБЕР-боссом ══ -->
+  <div id="uber-victory-overlay" class="overlay">
+    <div id="uber-victory-modal" class="victory-modal"
+      style="background: rgba(10, 5, 20, 0.95); border: 2px solid #B026FF; box-shadow: 0 0 30px rgba(176, 38, 255, 0.3); padding: 30px; border-radius: 15px; text-align: center; color: #fff; min-width: 300px; display: flex; flex-direction: column; align-items: center;">
+      <h2 style="color: #00FF6A; text-shadow: 0 0 15px #00FF6A; margin-bottom: 5px;"><span
+          id="uber-victory-boss-icon">👾</span> VICTORY!</h2>
+      <p id="uber-victory-boss-name" style="font-size: 20px; font-weight: 900; letter-spacing: 2px; margin: 15px 0;">
+        BOSS NAME</p>
+      <div
+        style="margin: 20px 0; background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; width: 100%; box-sizing: border-box;">
+        <p style="margin: 5px 0;">XP: <span id="uber-victory-xp" style="color: #00FF6A; font-weight: 700;">+0</span></p>
+        <p style="margin: 5px 0;">Essence: <span id="uber-victory-essence"
+            style="color: #B026FF; font-weight: 700;">+0</span></p>
+      </div>
+      <button class="btn-neon" id="btn-uber-back-to-map"
+        style="border-color: #B026FF; color: #B026FF; width: 220px;">RETURN TO MAP</button>
+    </div>
+  </div>
+
+  <!-- ══ Оверлей ПОРАЖЕНИЯ от УБЕР-босса ══ -->
+  <div id="uber-defeat-overlay" class="overlay">
+    <div id="uber-defeat-modal" class="defeat-modal"
+      style="background: rgba(10, 5, 20, 0.95); border: 2px solid #FF073A; box-shadow: 0 0 30px rgba(255, 7, 58, 0.3); padding: 30px; border-radius: 15px; text-align: center; color: #fff; min-width: 300px; display: flex; flex-direction: column; align-items: center;">
+      <h2 style="color: #FF073A; text-shadow: 0 0 15px #FF073A; margin-bottom: 5px;"><span
+          id="uber-defeat-boss-icon">👾</span> DEFEAT!</h2>
+      <p id="uber-defeat-boss-name"
+        style="font-size: 20px; font-weight: 900; letter-spacing: 2px; margin: 15px 0; color: #B026FF;">BOSS NAME</p>
+      <p style="margin-bottom: 20px; opacity: 0.8;">TIME IS UP!</p>
+      <button class="btn-neon" id="btn-uber-defeat-restart" style="width: 220px; margin-bottom: 15px;">TRY
+        AGAIN</button>
+      <button class="btn-neon" id="btn-uber-defeat-back-to-map"
+        style="width: 220px; border-color: #B026FF; color: #B026FF;">RETURN TO MAP</button>
+    </div>
+  </div>
+
+  <!-- ══ Оверлей проигрыша ══ -->
+  <div id="defeat-overlay">
+    <div id="defeat-modal">
+      <h2>💀 Defeat</h2>
+      <p id="defeat-reason">Time is up!</p>
+      <button class="btn-neon" id="btn-restart-defeat">Try again</button>
+      <button class="btn-neon" id="btn-back-defeat">Back to previous level</button>
+    </div>
+  </div>
+
+  <!-- ══ Оверлей разблокировки навыков ══ -->
+  <div id="skills-unlock-overlay" class="overlay">
+    <div class="skills-modal">
+      <h2 style="color: #B026FF; text-shadow: 0 0 10px #B026FF;">New Options!</h2>
+      <p>You've passed level 5. The 'Skills' tab (2nd tab from the bottom) is now available.</p>
+      <p>By killing Pentagons and Hexagons, you will receive a special currency (Essence) to buy powerful active
+        skills!</p>
+      <button class="btn-neon" id="btn-close-skills-unlock">Got it</button>
+    </div>
+  </div>
+
+  <!-- ══ Оверлей разблокировки Престижа ══ -->
+  <div id="prestige-unlock-overlay" class="overlay">
+    <div class="skills-modal" style="border-color: #FFE400; box-shadow: 0 0 20px #FFE40044;">
+      <h2 style="color: #FFE400; text-shadow: 0 0 10px #FFE400;">Prestige Unlocked!</h2>
+      <p>You've passed level 35. The Prestige system (3rd tab) is now available.</p>
+      <p>By resetting progress, you get Prestige Points, which can be spent on powerful permanent enhancements!</p>
+      <button class="btn-neon" id="btn-close-prestige-unlock" style="border-color: #FFE400; color: #FFE400;">Let's
+        go!</button>
+    </div>
+  </div>
+
+  <!-- ══ Панель отладки (Debug) ══ -->
+  <div id="debug-panel">
+    <button id="btn-dbg-next-level">Next Lvl</button>
+    <button id="btn-dbg-lvl-35">Lvl 35</button>
+    <button id="btn-dbg-add-points">+10 Points</button>
+    <button id="btn-dbg-add-essence">+100 Ess.</button>
+    <button id="btn-dbg-add-essence-big">+20000 Ess.</button>
+    <button id="btn-dbg-reset" style="color: #FF073A;">Reset Game</button>
+    <button id="btn-dbg-fill-box" style="color: #FFD700;">Fill Box</button>
+    <button id="btn-dbg-save" style="color: #00FF6A;">Save</button>
+    <div id="debug-req-dps" style="color: #FFE400; font-size: 10px; margin-top: 5px; text-align: center;">Req. DPS: 0
+    </div>
+    <div id="debug-enemy-count" style="color: #FF073A; font-size: 10px; margin-top: 2px; text-align: center;">Enemies: 0
+    </div>
+    <div id="debug-boss-hp" style="color: #24dbe9; font-size: 10px; margin-top: 2px; text-align: center;">Boss HP: 0
+    </div>
+  </div>
+
+
+  <div id="upgrade-tooltip"></div>
+
+  <script src="config.js"></script>
+  <script src="uber_bosses_config.js"></script>
+  <script src="visuals.js"></script>
+  <script src="scaling.js"></script>
+  <script src="game.js"></script>
+  <script src="upgrades.js"></script>
+  <script src="prestige.js"></script>
+  <script src="uber_bosses_map.js"></script>
+
+</body>
+
+</html>

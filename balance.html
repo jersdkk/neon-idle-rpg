@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Симулятор Баланса My Game 2</title>
+    <!-- Подключаем скрипты игры напрямую, чтобы использовать актуальный баланс -->
+    <script src="config.js"></script>
+    <script src="scaling.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #24dbe9;
+            text-align: center;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        input[type="number"] {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 4px;
+            width: 80px;
+        }
+
+        button {
+            background: #24dbe9;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #00F0FF;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 600px;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Отладка Баланса</h1>
+        <div class="controls"
+            style="display: flex; gap: 20px; text-align: left; align-items: flex-start; justify-content: space-between; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px;">
+                <label for="maxLevel">Считать до локации:</label>
+                <input type="number" id="maxLevel" value="100" min="10" max="1000"
+                    style="background:#333; color:#fff; border:1px solid #555; padding:5px; width: 250px; display: block; margin-top: 5px; margin-bottom: 15px;">
+                <label for="scaleType">Шкала Y:</label>
+                <select id="scaleType"
+                    style="background:#333; color:#fff; border:1px solid #555; padding:5px; width: 250px; display: block; margin-top: 5px; margin-bottom: 15px;">
+                    <option value="logarithmic">Логарифмическая</option>
+                    <option value="linear">Линейная</option>
+                </select>
+                <label for="playerBehavior">Поведение игрока:</label>
+                <select id="playerBehavior"
+                    style="background:#333; color:#fff; border:1px solid #555; padding:5px; width: 250px; display: block; margin-top: 5px; margin-bottom: 20px;">
+                    <option value="optimal">Оптимальное (Макс. ДПС)</option>
+                    <option value="random">Случайное (Хаос)</option>
+                    <option value="worst">Худшее (Мин. ДПС)</option>
+                </select>
+                <button onclick="updateChart()">Рассчитать и Построить</button>
+            </div>
+
+            <div id="summaryBlock"
+                style="flex: 1; min-width: 300px; background: #1a1a1a; border: 1px solid #444; border-radius: 8px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                <b style="color: #24dbe9; font-size: 1.1em; text-transform: uppercase; letter-spacing: 1px;">📊 Итоги
+                    прохождения:</b>
+                <div id="summaryContent"
+                    style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
+                    <div>• Локаций пройдено: <b style="color: #fff;">-</b></div>
+                    <div>• Проигрышей: <b style="color: #ffcc00;">-</b></div>
+                    <div>• Общее время: <b style="color: #00ff00;">-</b></div>
+                    <div>• Финальный уровень: <b style="color: #d725da;">-</b></div>
+                    <div>• Сбросов (Престиж): <b style="color: #FFE400;">-</b></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; gap: 10px;">
+            <button id="btnShowBalance" onclick="switchChart('balance')" style="background: #24dbe9;">Баланс: Урон /
+                HP</button>
+            <button id="btnShowXP" onclick="switchChart('xp')" style="background: #444;">Прогрессия: Опыт /
+                Уровни</button>
+        </div>
+
+        <div id="chartContainerBalance" class="chart-container" style="height: 600px; width: 100%;">
+            <canvas id="balanceChart"></canvas>
+        </div>
+
+        <div id="chartContainerXP" class="chart-container" style="height: 600px; width: 100%; display: none;">
+            <canvas id="xpChart"></canvas>
+        </div>
+
+
+
+        <div style="display: flex; gap: 20px; align-items: flex-start;">
+            <div id="simulationLogContainer"
+                style="flex: 1; margin-top: 30px; background: #0a0a0a; border: 1px solid #333; padding: 20px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                <h3 style="margin-top: 0; color: #24dbe9; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                    Лог прогрессии ( Single Target )
+                </h3>
+                <div id="simulationLog" style="max-height: 600px; overflow-y: auto;">
+                    Здесь будет лог прокачки...
+                </div>
+            </div>
+
+            <div id="bossLogContainer"
+                style="flex: 1; margin-top: 30px; background: #0a0a0a; border: 1px solid #333; padding: 20px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                <h3 style="margin-top: 0; color: #FFE400; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                    Логи Боссов
+                </h3>
+                <div id="bossLog" style="max-height: 600px; overflow-y: auto;">
+                    Здесь будет история битв с боссами...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chartInstance = null;
+        let xpChartInstance = null;
+
+        let currentChartType = 'balance';
+
+        function saveSettings() {
+            const settings = {
+                maxLevel: document.getElementById('maxLevel').value,
+                scaleType: document.getElementById('scaleType').value,
+                playerBehavior: document.getElementById('playerBehavior').value,
+                currentChartType: currentChartType,
+                skills: {},
+                prestige: {},
+                visibility: {
+                    balance: [],
+                    xp: []
+                }
+            };
+
+            // Сохраняем видимость кривых на графиках
+            if (chartInstance) {
+                chartInstance.data.datasets.forEach((ds, i) => {
+                    const meta = chartInstance.getDatasetMeta(i);
+                    if (meta.hidden === true) settings.visibility.balance.push(i);
+                });
+            }
+            if (xpChartInstance) {
+                xpChartInstance.data.datasets.forEach((ds, i) => {
+                    const meta = xpChartInstance.getDatasetMeta(i);
+                    if (meta.hidden === true) settings.visibility.xp.push(i);
+                });
+            }
+
+            // Значения навыков больше не сохраняются, так как панели удалены
+
+
+            localStorage.setItem('simulatorSettings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('simulatorSettings');
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.maxLevel) document.getElementById('maxLevel').value = settings.maxLevel;
+                if (settings.scaleType) document.getElementById('scaleType').value = settings.scaleType;
+                if (settings.playerBehavior) document.getElementById('playerBehavior').value = settings.playerBehavior;
+                if (settings.currentChartType) {
+                    currentChartType = settings.currentChartType;
+                    switchChart(currentChartType, false); // false чтобы не сохранять повторно во время загрузки
+                }
+
+                // Значения навыков больше не загружаются
+
+            }
+        }
+
+        function switchChart(type, shouldSave = true) {
+            currentChartType = type;
+            const bCont = document.getElementById('chartContainerBalance');
+            const xCont = document.getElementById('chartContainerXP');
+            const btnB = document.getElementById('btnShowBalance');
+            const btnX = document.getElementById('btnShowXP');
+
+            if (type === 'balance') {
+                bCont.style.display = 'block';
+                xCont.style.display = 'none';
+                btnB.style.background = '#24dbe9';
+                btnX.style.background = '#444';
+            } else {
+                bCont.style.display = 'none';
+                xCont.style.display = 'block';
+                btnB.style.background = '#444';
+                btnX.style.background = '#24dbe9';
+                if (xpChartInstance) xpChartInstance.update();
+            }
+            if (shouldSave) saveSettings();
+        }
+
+
+
+        function xpForLevel(lvl) {
+            return window.Scaling.getXPForLevel(lvl);
+        }
+
+        function getEnemiesForStage(locLvl) {
+            const bossCfg = CONFIG.enemies.boss;
+            const list = [];
+            if (window.Scaling.isBossLevel(locLvl)) {
+                list.push({
+                    level: locLvl,
+                    xpMultiplier: window.Scaling.getBossXPMultiplier(locLvl),
+                    essenceDrop: window.Scaling.getBossEssenceDrop(locLvl),
+                    isBoss: true,
+                    hp: window.Scaling.getBossHP(bossCfg, locLvl)
+                });
+                return list;
+            }
+
+            const countInfo = window.Scaling.getEnemyCount(locLvl);
+            const layout = CONFIG.location.enemyLayout;
+
+            layout.forEach(l => {
+                const type = CONFIG.enemies.types[l.typeIndex];
+                list.push({
+                    level: locLvl,
+                    xpMultiplier: type.xpMultiplier,
+                    essenceDrop: type.essenceDrop || 0,
+                    hp: window.Scaling.getEnemyHP(type, locLvl)
+                });
+            });
+
+            for (let i = 0; i < countInfo.extra; i++) {
+                const type = CONFIG.enemies.types[i % CONFIG.enemies.types.length];
+                list.push({
+                    level: locLvl,
+                    xpMultiplier: type.xpMultiplier,
+                    essenceDrop: type.essenceDrop || 0,
+                    hp: window.Scaling.getEnemyHP(type, locLvl)
+                });
+            }
+            return list;
+        }
+
+        function simulatePlayerDPS(maxLocLevel, activeSkills, initialPrestigeSkills, behavior, withDeathAtBoss = false) {
+            let prestigeSkills = { ...initialPrestigeSkills };
+            let playerStats = {
+                damage: CONFIG.player.baseDamage || 10,
+                attackSpeed: CONFIG.player.baseAttackSpeed || 1,
+                critChance: CONFIG.player.baseCritChance || 0,
+                critDamage: CONFIG.player.baseCritDamage || 1.5,
+                areaDamageRadius: CONFIG.player.baseAreaDamageRadius || 0,
+                areaDamageMult: CONFIG.player.baseAreaDamageMult || 0.3,
+                cooldownReduction: CONFIG.player.baseCooldownReduction || 0,
+                essenceMult: CONFIG.player.baseEssenceMult || 1
+            };
+
+            const logs = [];
+            const bossLogs = [];
+            const dpsCurve = [];
+            const prestigeDpsCurve = [];
+            const prestigesAtLevel = [];
+            const initialPrestigesAtLevel = [];
+            const xpReqCurve = [];
+            const xpGainCurve = [];
+            let playerLvlCurve = [];
+            let initialPlayerLvlCurve = [];
+            let maxLevelReached = 0;
+            let lastLoggedBoss = 0;
+            let firstEntryDpsPerBoss = {};
+            let attemptsPerBoss = {};
+            let prestigePoints = 0;
+            let totalPrestiges = 0;
+            let loggedBosses = {}; // Отслеживание пройденных боссов
+            let bossCounter = 0;   // Порядковый номер босса в логе
+
+
+
+            // Навешиваем начальные уровни навыков (screen2) из аргумента
+            const skillNodes = CONFIG.upgrades.screen2.nodes;
+            let currentSkillLevelsS2 = {};
+            skillNodes.forEach(n => {
+                currentSkillLevelsS2[n.id] = parseInt(activeSkills[n.id]) || 0;
+            });
+            let currentEssence = 0;
+
+            // Функция стоимости навыка с экспоненциальным ростом
+            function skillCost(node, bought) {
+                if (node.costMultiplier && node.costMultiplier > 1) {
+                    return Math.floor(node.costPerLevel * Math.pow(node.costMultiplier, bought));
+                }
+                return node.costPerLevel;
+            }
+
+            // Функция расчета ДПС с динамическими навыками
+            function getFullDPS(s, isBoss = true) {
+                // CDR из динамических навыков
+                const dynCDR = currentSkillLevelsS2.skillCDR ? (currentSkillLevelsS2.skillCDR * 0.05) : 0;
+
+                // Баффы Power и Haste с учетом динамических уровней
+                let dynPowerMult = 1;
+                let dynHasteMult = 1;
+                if (currentSkillLevelsS2.skillPower > 0) {
+                    const power = CONFIG.skills.power;
+                    const uptime = Math.min(1, power.duration / (power.cooldown * (1 - dynCDR)));
+                    dynPowerMult = 1 + (power.damageBonusPerLevel * currentSkillLevelsS2.skillPower * uptime);
+                }
+                if (currentSkillLevelsS2.skillHaste > 0) {
+                    const haste = CONFIG.skills.haste;
+                    const uptime = Math.min(1, haste.duration / (haste.cooldown * (1 - dynCDR)));
+                    dynHasteMult = 1 + (haste.speedBonusPerLevel * currentSkillLevelsS2.skillHaste * uptime);
+                }
+
+                const pStats = window.Scaling.getPrestigeStats(prestigeSkills);
+                const effectiveCritChance = Math.min(1, Math.max(0, s.critChance + pStats.critChance));
+                const critMult = 1 + effectiveCritChance * (s.critDamage + pStats.critDmg - 1);
+
+                let avgDmg = s.damage * pStats.dmgMult * dynPowerMult;
+
+                // Учет Splash Damage (Area Damage) на обычных локациях
+                // Считаем, что в толпе сплеш задевает в среднем 3 дополнительные цели (если радиус > 0)
+                let areaMult = 1;
+                if (!isBoss && s.areaDamageRadius > 0) {
+                    const aoeForce = s.areaDamageMult || 0.5;
+                    areaMult = 1 + (3 * aoeForce);
+                }
+
+                let avgAspd = s.attackSpeed * dynHasteMult;
+                let autoAtkDps = avgDmg * avgAspd * critMult * areaMult;
+
+                let skillsDps = 0;
+                if (currentSkillLevelsS2.skillLightning > 0) {
+                    const ltn = CONFIG.skills.lightning;
+                    skillsDps += (avgDmg * ltn.damageMultiplier * currentSkillLevelsS2.skillLightning) / (ltn.cooldown * (1 - dynCDR));
+                }
+                if (currentSkillLevelsS2.skillGrenade > 0) {
+                    const grn = CONFIG.skills.grenade;
+                    // Граната тоже является АОЕ навыком
+                    const grnAreaMult = !isBoss ? 2.5 : 1;
+                    skillsDps += (avgDmg * grn.damageMultiplier * currentSkillLevelsS2.skillGrenade * grnAreaMult) / (grn.cooldown * (1 - dynCDR));
+                }
+                return autoAtkDps + skillsDps;
+            }
+
+            // Покупка лучшего навыка за эссенцию
+            function tryBuySkills(dispLvl) {
+                // Навыки открываются только с 5-й локации
+                if (dispLvl < 5) return;
+                let bought = true;
+                while (bought) {
+                    bought = false;
+                    let potentialNodes = [];
+                    skillNodes.forEach(node => {
+                        // Проверка логики разблокировки (как в upgrades.js)
+                        if (node.id === 'skillHaste' && dispLvl <= 10) return;
+                        if (node.id === 'skillPower' && dispLvl <= 15) return;
+                        if (node.id === 'skillGrenade' && dispLvl <= 25) return;
+
+                        const lvl = currentSkillLevelsS2[node.id];
+                        if (lvl >= node.maxLevel) return;
+                        const cost = skillCost(node, lvl);
+
+                        const prevDps = getFullDPS(playerStats, false);
+                        const oldLvl = currentSkillLevelsS2[node.id];
+                        currentSkillLevelsS2[node.id] = oldLvl + 1;
+                        const newDps = getFullDPS(playerStats, false);
+                        currentSkillLevelsS2[node.id] = oldLvl; // Откатываем
+                        const eff = (newDps - prevDps) / cost;
+                        potentialNodes.push({ node, efficiency: eff, cost });
+                    });
+
+                    if (potentialNodes.length > 0) {
+                        let bestCandidate = null;
+                        if (behavior === 'optimal') {
+                            potentialNodes.sort((a, b) => b.efficiency - a.efficiency);
+                            let bestOverall = potentialNodes[0];
+                            let affordableNodes = potentialNodes.filter(p => currentEssence >= p.cost);
+
+                            if (currentEssence >= bestOverall.cost) {
+                                bestCandidate = bestOverall;
+                            } else if (bestOverall.cost > currentEssence * 1.5) {
+                                // Для эссенции множитель другой, так как она капает медленнее
+                                if (affordableNodes.length > 0) bestCandidate = affordableNodes[0];
+                            } else {
+                                break;
+                            }
+                        } else if (behavior === 'worst') {
+                            let affordable = potentialNodes.filter(p => currentEssence >= p.cost);
+                            if (affordable.length > 0) {
+                                affordable.sort((a, b) => a.efficiency - b.efficiency);
+                                bestCandidate = affordable[0];
+                            }
+                        } else {
+                            // Случайный — выбираем любую открытую цель и копим на неё
+                            const seed = dispLvl + playerLvl + currentEssence;
+                            // Используем детерминированный рандом от сида, чтобы результаты были воспроизводимы
+                            const randVal = Math.abs(Math.sin(seed) * 10000);
+                            const randomIndex = Math.floor(randVal % potentialNodes.length);
+                            const target = potentialNodes[randomIndex];
+
+                            if (currentEssence >= target.cost) {
+                                bestCandidate = target;
+                            } else {
+                                // Копим на этот случайный выбор
+                                break;
+                            }
+                        }
+
+                        if (bestCandidate) {
+                            const bestSkill = bestCandidate.node;
+                            const cost = bestCandidate.cost;
+                            let prevDps = getFullDPS(playerStats, true);
+                            currentEssence -= cost;
+                            currentSkillLevelsS2[bestSkill.id]++;
+                            let nextDps = getFullDPS(playerStats, true);
+                            let diff = prevDps > 0 ? ((nextDps - prevDps) / prevDps * 100).toFixed(1) : 0;
+                            let dpsFormat = nextDps > 1000000 ? (nextDps / 1000000).toFixed(2) + 'M' : (nextDps > 1000 ? (nextDps / 1000).toFixed(1) + 'K' : nextDps.toFixed(1));
+                            if (withDeathAtBoss) {
+                                logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="color: #888;">Loc ${dispLvl} [P-Lvl ${playerLvl}]:</span> <b style="color: #ff9800;">🔶 ${bestSkill.label} Lv${currentSkillLevelsS2[bestSkill.id]}</b> (${cost} эсс.), ДПС <span style="color: #24dbe9;">${dpsFormat}</span>, <span style="color: #00cc1f;">+${diff}%</span></div>`);
+                            }
+                            bought = true;
+                        }
+                    }
+                }
+            }
+
+            let currentPoints = 0;
+            let playerLvl = 1;
+            let currentXP = 0;
+            let stuckCounter = 0;
+            let lastMaxLevel = 0;
+            let totalLosses = 0;
+            let totalStagesPlayed = 0;
+            let totalTimeSeconds = 0;
+
+            // Апгрейды screen1
+            const nodes = CONFIG.upgrades.screen1.nodes;
+            let currentSkillLevels = {};
+            nodes.forEach(n => currentSkillLevels[n.id] = 0);
+
+            const bossCfg = CONFIG.enemies.boss;
+
+            function earnEssence(enemy, dispLvl) {
+                if (dispLvl < 5) return; // Эссенция только с 5-й локации
+                if (!enemy.essenceDrop || enemy.essenceDrop <= 0) return;
+                const pStats = window.Scaling.getPrestigeStats(prestigeSkills);
+                const totalEssenceMult = playerStats.essenceMult * pStats.essenceMult;
+                const amount = Math.floor(enemy.essenceDrop * totalEssenceMult);
+                if (amount > 0) currentEssence += amount;
+            }
+
+            function buildSummary() {
+                return {
+                    totalStagesPlayed: (withDeathAtBoss ? totalStagesPlayed : locLvl - 1),
+                    totalLosses,
+                    totalTimeSeconds,
+                    playerLvl,
+                    totalPrestiges
+                };
+            }
+
+            const LOC_TRANSITION_TIME = 3.0; // Секунд на победный декор, клик и загрузку новой локации
+            const ENEMY_SWITCH_TIME = 0.3;   // Секунд на поиск новой цели и поворот
+
+            let locLvl = 1;
+            while (locLvl <= maxLocLevel) {
+                // ЗАХВАТ ДПС ПЕРЕД ЛОКАЦИЕЙ (чтобы на боссах видеть ДПС входа, а не выхода)
+                let curDpsAtStart = getFullDPS(playerStats, true);
+                if (locLvl > maxLevelReached) {
+                    dpsCurve[locLvl - 1] = curDpsAtStart;
+                    initialPrestigesAtLevel[locLvl - 1] = totalPrestiges;
+                    initialPlayerLvlCurve[locLvl - 1] = playerLvl;
+                    maxLevelReached = locLvl;
+                }
+                prestigeDpsCurve[locLvl - 1] = curDpsAtStart;
+                prestigesAtLevel[locLvl - 1] = totalPrestiges;
+                playerLvlCurve[locLvl - 1] = playerLvl;
+
+                // Собираем данные по XP для этой локации
+                let stageXpGain = 0;
+                const stageEnemies = getEnemiesForStage(locLvl);
+                stageEnemies.forEach(e => stageXpGain += Math.floor(e.level * e.xpMultiplier));
+                xpGainCurve[locLvl - 1] = stageXpGain;
+                xpReqCurve[locLvl - 1] = xpForLevel(playerLvl);
+                playerLvlCurve[locLvl - 1] = playerLvl;
+
+                const isBossStage = window.Scaling.isBossLevel(locLvl);
+
+                if (withDeathAtBoss && isBossStage) {
+
+                    const prestigesBefore = totalPrestiges;
+                    const bossHP = window.Scaling.getBossHP(bossCfg, locLvl);
+                    if (!attemptsPerBoss[locLvl]) attemptsPerBoss[locLvl] = 0;
+                    if (firstEntryDpsPerBoss[locLvl] === undefined) {
+                        firstEntryDpsPerBoss[locLvl] = curDpsAtStart;
+                    }
+
+                    const farmInterval = window.Scaling.getBossInterval(locLvl);
+                    const farmStart = Math.floor((locLvl - 1) / farmInterval) * farmInterval + 1;
+                    let didPrestige = false;
+                    while (getFullDPS(playerStats) * bossCfg.timeoutSeconds < bossHP && attemptsPerBoss[locLvl] < 200) {
+                        attemptsPerBoss[locLvl]++;
+                        totalLosses++;
+                        totalTimeSeconds += bossCfg.timeoutSeconds;
+
+                        logs.push(`<div style="color: #ffcc00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #ffcc00;">Игрок проиграл боссу! (Смерть #${totalLosses})</b> Откат на Loc ${farmStart} для фарма.</div>`);
+                        logs.push(`<div style="color: #666; font-style: italic;">--- Заход ${attemptsPerBoss[locLvl]} (Фарм Loc ${farmStart}–${locLvl - 1}) ---</div>`);
+
+                        // Фарм уровней между боссами
+                        for (let f = farmStart; f < locLvl; f++) {
+                            totalStagesPlayed++;
+                            totalTimeSeconds += LOC_TRANSITION_TIME; // Затраты времени на переход между локами
+
+                            const farmEnemies = getEnemiesForStage(f);
+                            farmEnemies.forEach(e => {
+                                const dps = getFullDPS(playerStats, false);
+                                const killTime = (e.hp / (dps > 0 ? dps : 1));
+                                // В игре нельзя убить врага быстрее чем за 1 такт авто-атаки (если нет АОЕ/Навыков)
+                                // Но даже с ними есть минимальная задержка на спавн/анимацию.
+                                const minTime = 1.0 / (playerStats.attackSpeed || 1);
+                                totalTimeSeconds += Math.max(killTime, minTime * 0.5) + ENEMY_SWITCH_TIME;
+
+                                currentXP += Math.floor(e.level * e.xpMultiplier);
+                                earnEssence(e, f);
+                                while (currentXP >= xpForLevel(playerLvl)) {
+                                    currentXP -= xpForLevel(playerLvl);
+                                    playerLvl++;
+                                    currentPoints++;
+                                    runSpending(f);
+                                }
+                                tryBuySkills(f);
+                                let currentDpsVal = getFullDPS(playerStats, true);
+                                if (f > maxLevelReached) {
+                                    dpsCurve[f - 1] = currentDpsVal;
+                                    initialPrestigesAtLevel[f - 1] = totalPrestiges;
+                                }
+                                prestigeDpsCurve[f - 1] = currentDpsVal;
+                                prestigesAtLevel[f - 1] = totalPrestiges;
+                            });
+                        }
+
+                        // ── ЛОГИКА ПРЕСТИЖА ──
+                        let shouldPrestige = false;
+                        let pSkillObj = CONFIG.upgrades.screen3.nodes.find(n => n.id === 'prestige_bonus');
+                        const pBonusLvl = prestigeSkills['prestige_bonus'] || 0;
+                        const pBonusVal = pBonusLvl * (pSkillObj ? pSkillObj.valuePerLevel : 0);
+                        const pReward = Math.max(1, Math.floor(Math.pow(locLvl, 2) * (1 + pBonusVal)));
+
+                        // Престиж открывается только после прохождения заданного уровня!
+                        const pUnlock = (CONFIG.upgrades && CONFIG.upgrades.screen3 && CONFIG.upgrades.screen3.unlockLevel) ? CONFIG.upgrades.screen3.unlockLevel : 35;
+                        if (maxLevelReached >= pUnlock) {
+
+                            if (behavior === 'random' && attemptsPerBoss[locLvl] >= 3 && pReward > 0) {
+                                shouldPrestige = true;
+                            } else if (behavior === 'worst' && pReward > 0 && Math.random() < 0.15) {
+                                // Худший игрок делает сброс просто от балды (15% шанс каждую секунду-попытку на боссе)
+                                shouldPrestige = true;
+                            } else if (behavior === 'optimal') {
+                                let nextCost = Infinity;
+                                CONFIG.upgrades.screen3.nodes.forEach(n => {
+                                    const curl = prestigeSkills[n.id] || 0;
+                                    if (curl < n.maxLevel) {
+                                        const cost = Math.ceil(Math.pow(n.baseCost * (curl + 1), n.costExponent || 3));
+                                        if (cost < nextCost) nextCost = cost;
+                                    }
+                                });
+                                // Игрок-стратег престижится быстро: если не пробил босса за 1 попытку, но уже скопил на навык
+                                if (attemptsPerBoss[locLvl] >= 1 && (prestigePoints + pReward) >= nextCost) {
+                                    shouldPrestige = true;
+                                    // Либо если босс "толстый" и застрял на 5 попыток (чтобы не тратить время на долгий фарм)
+                                } else if (attemptsPerBoss[locLvl] >= 5) {
+                                    shouldPrestige = true;
+                                }
+                            }
+                        }
+
+                        if (shouldPrestige) {
+                            didPrestige = true;
+                            prestigePoints += pReward;
+                            totalPrestiges++;
+                            if (withDeathAtBoss) {
+                                logs.push(`<div style="padding: 10px; border: 1px dashed #FFE400; background: #2a2000; margin: 10px 0; border-radius: 8px;">`);
+                                logs.push(`<b style="color: #FFE400; font-size: 1.1em;">⭐ [ПРЕСТИЖ]</b> <span style="color: #ccc;">Сброс с уровня ${locLvl} до ${Math.max(1, Math.floor(locLvl * 0.5))}</span>`);
+                                logs.push(`<div style="color: #00FF6A; font-weight: bold; margin-bottom: 5px;">Получено: +${pReward} очков престижа</div>`);
+
+                                let spent = true;
+                                while (spent) {
+                                    spent = false;
+                                    let nodesP = CONFIG.upgrades.screen3.nodes.map(n => {
+                                        const curl = prestigeSkills[n.id] || 0;
+                                        if (curl >= n.maxLevel) return null;
+                                        const cost = Math.ceil(Math.pow(n.baseCost * (curl + 1), n.costExponent || 3));
+                                        return { node: n, cost, curl };
+                                    }).filter(Boolean);
+
+                                    if (nodesP.length === 0) break;
+
+                                    let bestP = null;
+                                    if (behavior === 'optimal') {
+                                        nodesP.sort((a, b) => {
+                                            let effA = a.node.id === 'prestige_essence' ? 100 : a.node.id === 'prestige_damage' ? 50 : 10;
+                                            let effB = b.node.id === 'prestige_essence' ? 100 : b.node.id === 'prestige_damage' ? 50 : 10;
+                                            return (effB / b.cost) - (effA / a.cost);
+                                        });
+                                        if (prestigePoints >= nodesP[0].cost) bestP = nodesP[0];
+                                    } else if (behavior === 'random') {
+                                        const rnd = nodesP[Math.floor(Math.random() * nodesP.length)];
+                                        if (prestigePoints >= rnd.cost) bestP = rnd;
+                                    } else if (behavior === 'worst') {
+                                        let affordable = nodesP.filter(p => prestigePoints >= p.cost);
+                                        if (affordable.length > 0) {
+                                            // Худший покупает самую дорогую вещь из тех, что УЖЕ МОЖЕТ себе позволить, игнорируя эффективность
+                                            affordable.sort((a, b) => b.cost - a.cost);
+                                            bestP = affordable[0];
+                                        }
+                                    }
+
+                                    if (bestP) {
+                                        prestigePoints -= bestP.cost;
+                                        prestigeSkills[bestP.node.id] = bestP.curl + 1;
+                                        logs.push(`<div style="color: #FFE400; padding-left: 15px;">└ <b>Куплен: ${bestP.node.label} (Ур.${bestP.curl + 1})</b> за ${bestP.cost} ★</div>`);
+                                        spent = true;
+                                    }
+                                }
+                                let postPrestigeDps = getFullDPS(playerStats, true);
+                                let pdpsFormat = postPrestigeDps > 1000000 ? (postPrestigeDps / 1000000).toFixed(2) + 'M' : (postPrestigeDps > 1000 ? (postPrestigeDps / 1000).toFixed(1) + 'K' : postPrestigeDps.toFixed(1));
+                                logs.push(`<div style="color: #00FF6A; font-weight: bold; margin-top: 5px;">🔥 Новый ДПС после престижа: ${pdpsFormat}</div>`);
+                                logs.push(`</div>`);
+                            }
+
+                            if (maxLevelReached > lastMaxLevel) {
+                                stuckCounter = 0;
+                                lastMaxLevel = maxLevelReached;
+                            } else {
+                                stuckCounter++;
+                            }
+
+                            if (stuckCounter >= 10) {
+                                logs.push(`<div style="padding: 20px; border: 2px solid #FF073A; background: #200; color: #FF073A; font-weight: bold; margin-top: 20px; border-radius: 8px; text-align: center;">`);
+                                logs.push(`⚠ ОСТАНОВКА СИМУЛЯЦИИ: ТУПИК ПРОГРЕССИИ<br>`);
+                                logs.push(`<span style="font-size: 0.9em; color: #ccc; font-weight: normal;">Игрок совершил 10 престижей подряд на локации ${maxLevelReached}, не продвинувшись дальше. <br> Дальнейший расчет невозможен: не хватает ДПС или бонусов.</span>`);
+                                logs.push(`</div>`);
+                                let summary = buildSummary();
+                                return { dpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, xpReqCurve, xpGainCurve, playerLvlCurve, initialPlayerLvlCurve, logs, bossLogs, summary };
+                            }
+
+                            locLvl = Math.max(1, Math.floor(locLvl * 0.5));
+                            break;
+                        }
+                    }
+
+                    if (didPrestige) continue;
+
+                    const bossHPCheck = window.Scaling.getBossHP(bossCfg, locLvl);
+                    if (attemptsPerBoss[locLvl] >= 30) {
+                        logs.push(`<div style="color: #ff3333;"><b>⚠ Босс непобедим после 30 попыток! Остановка симуляции.</b></div>`);
+                        let summary = buildSummary();
+                        return { dpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, logs, bossLogs, summary };
+                    } else if (getFullDPS(playerStats) * bossCfg.timeoutSeconds >= bossHPCheck) {
+                        // Логируем только первое успешное прохождение босса, чтобы не засорять лог после престижа
+                        if (!loggedBosses[locLvl]) {
+                            loggedBosses[locLvl] = true;
+                            bossCounter++;
+                            
+                            const killDps = getFullDPS(playerStats, true);
+                            const initialDps = firstEntryDpsPerBoss[locLvl] || curDpsAtStart;
+                            const reqDpsVal = (bossHPCheck / bossCfg.timeoutSeconds) + 1;
+                            const isStrongEnough = initialDps >= reqDpsVal;
+                            const entryDpsColor = isStrongEnough ? "#00FF6A" : "#FF3333";
+                            const format = (v) => v > 1000000 ? (v / 1000000).toFixed(2) + 'M' : (v > 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(1));
+
+                            bossLogs.push(`
+                                <div style="padding-bottom: 8px; margin-bottom: 8px;">
+                                    <span style="color: #FFE400; font-weight: bold;">[БОСС #${bossCounter}]</span> 
+                                    <span style="color: #888;">Локация:</span> <span style="color: #fff;">${locLvl}</span> | 
+                                    <span style="color: #888;">Попытки:</span> <span style="color: #fff;">${attemptsPerBoss[locLvl] + 1}</span> | 
+                                    <span style="color: #888;">Престиж (всего):</span> <span style="color: #fff;">${totalPrestiges}</span><br>
+                                    <span style="color: #888;">ДПС входа:</span> <span style="color: ${entryDpsColor};">${format(initialDps)}</span> | 
+                                    <span style="color: #888;">Требуемый:</span> <span style="color: #FF8C00;">${format(reqDpsVal)}</span> | 
+                                    <span style="color: #888;">ДПС убийства:</span> <span style="color: #24dbe9;">${format(killDps)}</span>
+                                </div>
+                            `);
+                            
+                            logs.push(`<div style="color: #d725daff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #d725daff;">Игрок прошел босса</b> Попыток: ${attemptsPerBoss[locLvl] + 1}</div>`);
+                        }
+                    }
+                }
+
+                totalStagesPlayed++;
+                totalTimeSeconds += LOC_TRANSITION_TIME;
+
+                const enemies = getEnemiesForStage(locLvl);
+                enemies.forEach(enemy => {
+                    const dps = getFullDPS(playerStats, isBossStage);
+                    const killTime = (enemy.hp / (dps > 0 ? dps : 1));
+                    const minTime = 1.0 / (playerStats.attackSpeed || 1);
+                    totalTimeSeconds += Math.max(killTime, minTime * 0.5) + ENEMY_SWITCH_TIME;
+
+                    currentXP += Math.floor(enemy.level * enemy.xpMultiplier);
+                    earnEssence(enemy, locLvl);
+                    while (currentXP >= xpForLevel(playerLvl)) {
+                        currentXP -= xpForLevel(playerLvl);
+                        playerLvl++;
+                        currentPoints++;
+                        runSpending(locLvl);
+                    }
+                    tryBuySkills(locLvl);
+                });
+
+                function runSpending(dispLvl) {
+                    let pointsSpent = true;
+                    while (pointsSpent) {
+                        pointsSpent = false;
+                        let potentialNodes = [];
+                        nodes.forEach(node => {
+                            const clvl = currentSkillLevels[node.id];
+                            if (clvl >= node.maxLevel) return;
+                            const cost = node.costPerLevel;
+
+                            let reqs = node.requires;
+                            if (reqs) {
+                                if (!Array.isArray(reqs)) reqs = [reqs];
+                                if (reqs.some(r => {
+                                    const rn = nodes.find(n => n.id === r);
+                                    return !rn || currentSkillLevels[r] < (rn.maxLevel || 1);
+                                })) return;
+                            }
+                            let tempStats = { ...playerStats };
+                            if (node.type === 'damage') tempStats.damage += node.valuePerLevel;
+                            if (node.type === 'attackSpeed') tempStats.attackSpeed += node.valuePerLevel;
+                            if (node.type === 'critChance') tempStats.critChance += node.valuePerLevel;
+                            if (node.type === 'critDamage') tempStats.critDamage += node.valuePerLevel;
+                            if (node.type === 'areaDamage') tempStats.areaDamageRadius += node.valuePerLevel;
+                            if (node.type === 'areaDamagePlus') tempStats.areaDamageMult += node.valuePerLevel;
+                            if (node.type === 'essenceBonus') tempStats.essenceMult += node.valuePerLevel;
+
+                            // Для оценки эффективности используем урон ПО БОССУ (IsBoss=true)
+                            const cur = getFullDPS(playerStats, true);
+                            const next = getFullDPS(tempStats, true);
+                            let eff = (next - cur) / cost;
+                            // Сплеш-апгрейды оцениваем по Stage DPS, чтобы они покупались, 
+                            // но даем им чуть меньший приоритет чем чистому урону
+                            if (node.type === 'areaDamage' || node.type === 'areaDamagePlus') {
+                                const curMob = getFullDPS(playerStats, false);
+                                const nextMob = getFullDPS(tempStats, false);
+                                eff = ((nextMob - curMob) / cost) * 0.5;
+                            }
+                            if (node.type === 'essenceBonus' && eff === 0) eff = 0.001;
+                            potentialNodes.push({ node, efficiency: eff, cost });
+                        });
+
+                        if (potentialNodes.length > 0) {
+                            let bestCandidate = null;
+                            if (behavior === 'optimal') {
+                                potentialNodes.sort((a, b) => b.efficiency - a.efficiency);
+
+                                // Умное ожидание: Ищем лучший узел, который мы можем позволить себе 
+                                // в ближайшем будущем (разница в цене не более 3 очков)
+                                let bestOverall = potentialNodes[0];
+                                let affordableNodes = potentialNodes.filter(p => currentPoints >= p.cost);
+
+                                if (currentPoints >= bestOverall.cost) {
+                                    bestCandidate = bestOverall;
+                                } else if (bestOverall.cost > currentPoints + 3) {
+                                    // Если лучший СЛИШКОМ дорогой (нужно ждать > 3 уровней),
+                                    // то берем лучшее из того, что можем купить сейчас, чтобы не стоять на месте
+                                    if (affordableNodes.length > 0) {
+                                        bestCandidate = affordableNodes[0];
+                                    }
+                                } else {
+                                    // Ждем (копим), так как лучший узел близко по цене
+                                    break;
+                                }
+                            } else if (behavior === 'worst') {
+                                // Для худшего — фильтруем что можем купить и берем худшее из них
+                                let affordable = potentialNodes.filter(p => currentPoints >= p.cost);
+                                if (affordable.length > 0) {
+                                    affordable.sort((a, b) => a.efficiency - b.efficiency);
+                                    bestCandidate = affordable[0];
+                                }
+                            } else {
+                                // Случайный — берем любую из открытых и копим
+                                const seed = dispLvl + playerLvl + currentPoints;
+                                const randVal = Math.abs(Math.sin(seed) * 10000);
+                                const randomIndex = Math.floor(randVal % potentialNodes.length);
+                                const target = potentialNodes[randomIndex];
+
+                                if (currentPoints >= target.cost) {
+                                    bestCandidate = target;
+                                } else {
+                                    // Копим на этот случайный выбор
+                                    break;
+                                }
+                            }
+
+                            if (bestCandidate) {
+                                let prevDps = getFullDPS(playerStats);
+                                const targetNode = bestCandidate.node;
+                                currentPoints -= bestCandidate.cost;
+                                currentSkillLevels[targetNode.id]++;
+                                if (targetNode.type === 'damage') playerStats.damage += targetNode.valuePerLevel;
+                                if (targetNode.type === 'attackSpeed') playerStats.attackSpeed += targetNode.valuePerLevel;
+                                if (targetNode.type === 'critChance') playerStats.critChance += targetNode.valuePerLevel;
+                                if (targetNode.type === 'critDamage') playerStats.critDamage += targetNode.valuePerLevel;
+                                if (targetNode.type === 'areaDamage') playerStats.areaDamageRadius += targetNode.valuePerLevel;
+                                if (targetNode.type === 'areaDamagePlus') playerStats.areaDamageMult += targetNode.valuePerLevel;
+                                if (targetNode.type === 'essenceBonus') playerStats.essenceMult += targetNode.valuePerLevel;
+                                let nextDps = getFullDPS(playerStats);
+                                if (withDeathAtBoss) {
+                                    let diff = nextDps > 0 ? ((nextDps - prevDps) / prevDps * 100).toFixed(1) : 0;
+                                    let dpsFormat = nextDps > 1000000 ? (nextDps / 1000000).toFixed(2) + 'M' : (nextDps > 1000 ? (nextDps / 1000).toFixed(1) + 'K' : nextDps.toFixed(1));
+                                    logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="color: #888;">Loc ${dispLvl} [P-Lvl ${playerLvl}]:</span> <b>${targetNode.label}</b>, ДПС <span style="color: #24dbe9;">${dpsFormat}</span>, <span style="color: #00cc1f;">+${diff}% ДПС</span></div>`);
+                                }
+                                pointsSpent = true;
+                            }
+                        }
+                    }
+                }
+
+                locLvl++;
+            }
+            let summary = buildSummary();
+            return { dpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, xpReqCurve, xpGainCurve, playerLvlCurve, initialPlayerLvlCurve, logs, bossLogs, summary };
+        }
+
+        function updateChart() {
+            saveSettings();
+
+            const maxLevel = parseInt(document.getElementById('maxLevel').value) || 100;
+            const scaleType = document.getElementById('scaleType').value;
+            const behavior = document.getElementById('playerBehavior').value;
+            // Навыки теперь всегда начинаются с 0, так как панели удалены
+            const activeSkills = {};
+            const prestigeSkills = {};
+
+
+            // Навыки дальше покупаются самим симулятором автоматически на основе выбранной стратегии
+
+
+            // Запускаем две симуляции
+            const resultsIdeal = simulatePlayerDPS(maxLevel, activeSkills, prestigeSkills, behavior, false);
+            const resultsReal = simulatePlayerDPS(maxLevel, activeSkills, prestigeSkills, behavior, true);
+
+            const logEl = document.getElementById('simulationLog');
+            logEl.innerHTML = resultsReal.logs.length > 0 ? resultsReal.logs.join('<br>') : 'Апгрейдов не куплено...';
+
+            const bossLogEl = document.getElementById('bossLog');
+            bossLogEl.innerHTML = resultsReal.bossLogs.length > 0 ? resultsReal.bossLogs.join('') : 'Боссы не пройдены...';
+
+            if (resultsReal.summary) {
+                let sum = resultsReal.summary;
+                let sumIdeal = resultsIdeal.summary;
+                let hours = Math.floor(sum.totalTimeSeconds / 3600);
+                let mins = Math.floor((sum.totalTimeSeconds % 3600) / 60);
+                let secs = Math.floor(sum.totalTimeSeconds % 60);
+
+                document.getElementById('summaryContent').innerHTML = `
+                    <div>• Локаций пройдено: <b style="color: #fff;">${maxLevel}</b></div>
+                    <div>• Проигрышей: <b style="color: #ffcc00;">${sum.totalLosses}</b></div>
+                    <div>• Общее время: <b style="color: #00ff00;">${hours}ч ${mins}м ${secs}с</b></div>
+                    <div>• Идеальный уровень: <b style="color: #24dbe9;" title="Без единой смерти (как в вашей игре)">${sumIdeal.playerLvl}</b></div>
+                    <div>• Финальный уровень: <b style="color: #d725da;" title="С учетом фарма после смертей">${sum.playerLvl}</b></div>
+                    <div>• Сбросов (Престиж): <b style="color: #FFE400;">${sum.totalPrestiges}</b></div>
+                `;
+            }
+
+            const labels = [];
+            const enemyHP = [];
+            const bossHP = [];
+            const reqDPS = [];
+            const types = CONFIG.enemies.types;
+            const bossCfg = CONFIG.enemies.boss;
+
+            for (let lvl = 1; lvl <= maxLevel; lvl++) {
+                labels.push(lvl);
+                let sumHP = 0;
+                types.forEach(t => sumHP += window.Scaling.getEnemyHP(t, lvl));
+                enemyHP.push(sumHP / types.length);
+                const isBoss = window.Scaling.isBossLevel(lvl);
+                if (isBoss) {
+                    let bHP = window.Scaling.getBossHP(bossCfg, lvl);
+                    bossHP.push(bHP);
+                    reqDPS.push(bHP / bossCfg.timeoutSeconds);
+                } else {
+                    bossHP.push(null);
+                    reqDPS.push(null);
+                }
+            }
+
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            // Получаем сохраненную видимость перед созданием графика
+            const saved = localStorage.getItem('simulatorSettings');
+            const settings = saved ? JSON.parse(saved) : null;
+            const balanceHidden = (settings && settings.visibility) ? settings.visibility.balance : [];
+            const xpHidden = (settings && settings.visibility) ? settings.visibility.xp : [];
+
+            if (chartInstance) chartInstance.destroy();
+            const defaultLegendClick = Chart.defaults.plugins.legend.onClick;
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Идеальный ДПС (Победы всегда)',
+                            data: resultsIdeal.dpsCurve,
+                            borderColor: '#00cc1f',
+                            backgroundColor: 'rgba(0, 204, 31, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.2,
+                            hidden: balanceHidden.includes(0) || true // Исходно скрыт, если не переопределено
+                        },
+                        {
+                            label: 'ДПС Первого прохождения',
+                            data: resultsReal.dpsCurve,
+                            borderColor: '#24dbe9',
+                            backgroundColor: 'rgba(36, 219, 233, 0.1)',
+                            borderWidth: 3,
+                            pointRadius: 0,
+                            tension: 0.2,
+                            hidden: balanceHidden.includes(1)
+                        },
+                        {
+                            label: 'ДПС с Престижем (Фарм)',
+                            data: resultsReal.prestigeDpsCurve,
+                            borderColor: '#B026FF',
+                            backgroundColor: 'rgba(176, 38, 255, 0.1)',
+                            borderWidth: 3,
+                            pointRadius: 0,
+                            tension: 0.2,
+                            hidden: balanceHidden.includes(2)
+                        },
+                        {
+                            label: 'Нужен ДПС для Босса',
+                            data: reqDPS,
+                            borderColor: '#FF8C00',
+                            backgroundColor: 'rgba(255, 140, 0, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 3,
+                            spanGaps: true,
+                            hidden: balanceHidden.includes(3)
+                        },
+                        {
+                            label: 'HP Обычных врагов',
+                            data: enemyHP,
+                            borderColor: '#FF073A',
+                            pointRadius: 0,
+                            borderWidth: 1,
+                            tension: 0.2,
+                            hidden: balanceHidden.includes(4) || true // Исходно скрыт
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    let val = context.parsed.y;
+                                    let formattedVal = val > 1000000 ? (val / 1000000).toFixed(2) + 'M' : (val > 1000 ? (val / 1000).toFixed(1) + 'K' : val.toFixed(1));
+                                    label += formattedVal;
+
+                                    if (context.dataset.label === 'ДПС с Престижем (Фарм)') {
+                                        let prestiges = resultsReal.prestigesAtLevel[context.dataIndex] || 0;
+                                        label += ` (Сбросов престижа: ${prestiges})`;
+                                    } else if (context.dataset.label === 'ДПС Первого прохождения') {
+                                        let prestiges = resultsReal.initialPrestigesAtLevel[context.dataIndex] || 0;
+                                        label += ` (Сбросов престижа: ${prestiges})`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            labels: { color: '#fff', font: { size: 12 } },
+                            onClick: function (e, legendItem, legend) {
+                                defaultLegendClick.call(this, e, legendItem, legend);
+                                saveSettings();
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Локация', color: '#fff' },
+                            ticks: { color: '#ccc' },
+                            grid: { display: false }
+                        },
+                        y: {
+                            type: scaleType,
+                            title: { display: true, text: 'Значение', color: '#fff' },
+                            ticks: { color: '#ccc' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // ── Рендеринг XP Графика ──
+            const xpCtx = document.getElementById('xpChart').getContext('2d');
+            if (xpChartInstance) xpChartInstance.destroy();
+
+            // Создаем массив данных: X - Уровень игрока, Y - XP / Доход
+            const playerLabels = [];
+            const maxPlayerLvlLimit = resultsReal.initialPlayerLvlCurve[resultsReal.initialPlayerLvlCurve.length - 1] || 100;
+            const maxPoints = 1200;
+            const step = Math.max(1, Math.ceil(maxPlayerLvlLimit / maxPoints));
+
+            const xpReqByPlayerLvl = [];
+            const xpGainByPlayerLvl = [];
+            const locationByPlayerLvl = [];
+            const pLabels = [];
+
+            let locPointer = 0;
+            for (let pl = 1; pl <= maxPlayerLvlLimit; pl += step) {
+                pLabels.push(`Ур. ${pl}`);
+                let req = xpForLevel(pl);
+                xpReqByPlayerLvl.push(isFinite(req) ? req : null);
+
+                while (locPointer < resultsReal.initialPlayerLvlCurve.length - 1 && resultsReal.initialPlayerLvlCurve[locPointer] < pl) {
+                    locPointer++;
+                }
+
+                if (resultsReal.initialPlayerLvlCurve[locPointer] >= pl) {
+                    let gain = resultsReal.xpGainCurve[locPointer];
+                    xpGainByPlayerLvl.push(isFinite(gain) ? gain : null);
+                    locationByPlayerLvl.push(locPointer + 1);
+                } else {
+                    xpGainByPlayerLvl.push(null);
+                    locationByPlayerLvl.push(null);
+                }
+            }
+
+            // Шкала для верхней оси X (Локация)
+            const x2Labels = locationByPlayerLvl.map((loc, idx) => {
+                if (idx % 10 === 0 && loc) return `Loc ${loc}`;
+                return '';
+            });
+
+            xpChartInstance = new Chart(xpCtx, {
+                type: 'line',
+                data: {
+                    labels: pLabels,
+                    datasets: [
+                        {
+                            label: 'Требуется XP для след. уровня',
+                            data: xpReqByPlayerLvl,
+                            borderColor: '#FFD700',
+                            backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0,
+                            hidden: xpHidden.includes(0)
+                        },
+                        {
+                            label: 'Опыт за прохождение текущей локации',
+                            data: xpGainByPlayerLvl,
+                            borderColor: '#ADFF2F',
+                            backgroundColor: 'rgba(173, 255, 47, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0,
+                            hidden: xpHidden.includes(1)
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff' },
+                            onClick: function (e, legendItem, legend) {
+                                defaultLegendClick.call(this, e, legendItem, legend);
+                                saveSettings();
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: (context) => {
+                                    const idx = context[0].dataIndex;
+                                    const loc = locationByPlayerLvl[idx];
+                                    return `Уровень ${pLabels[idx]}${loc ? ' (Локация ' + loc + ')' : ''}`;
+                                },
+                                label: (context) => {
+                                    let val = context.parsed.y;
+                                    let fv = val > 1000000 ? (val / 1000000).toFixed(2) + 'M' : (val > 1000 ? (val / 1000).toFixed(1) + 'K' : val);
+                                    return `${context.dataset.label}: ${fv}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Уровень персонажа', color: '#fff' },
+                            ticks: { color: '#ccc', maxRotation: 0 },
+                            grid: { display: false }
+                        },
+                        x2: {
+                            position: 'top',
+                            type: 'category',
+                            labels: x2Labels,
+                            ticks: { color: '#24dbe9', font: { size: 9 } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            type: scaleType,
+                            title: { display: true, text: 'Количество XP', color: '#fff' },
+                            ticks: { color: '#ccc' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            saveSettings();
+        }
+
+        window.onload = () => {
+            loadSettings();
+            setTimeout(updateChart, 200);
+
+            // Навешиваем авто-сохранение на изменение полей
+            document.getElementById('maxLevel').onchange = updateChart;
+            document.getElementById('scaleType').onchange = updateChart;
+            document.getElementById('playerBehavior').onchange = updateChart;
+        };
+        window.addEventListener('keydown', (e) => { if (e.key === 'Enter') updateChart(); });
+    </script>
+</body>
+
+</html>
