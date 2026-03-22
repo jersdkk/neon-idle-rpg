@@ -924,6 +924,14 @@
 
         SoundManager.playClick();
 
+        // Аналитика: открытие коробки
+        if (typeof window.gtag_game_event === 'function') {
+            window.gtag_game_event('gift_box_open', {
+                'rarity': rarity,
+                'count': gb.openedCount + 1
+            });
+        }
+
         gb.openedCount++;
         gb.kills = 0;
 
