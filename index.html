@@ -286,49 +286,89 @@
 
   <!-- ══ Оверлей ПОРАЖЕНИЯ от УБЕР-босса ══ -->
   <div id="uber-defeat-overlay" class="overlay">
-    <div id="uber-defeat-modal" class="defeat-modal"
-      style="background: rgba(10, 5, 20, 0.95); border: 2px solid #FF073A; box-shadow: 0 0 30px rgba(255, 7, 58, 0.3); padding: 30px; border-radius: 15px; text-align: center; color: #fff; min-width: 300px; display: flex; flex-direction: column; align-items: center;">
-      <h2 style="color: #FF073A; text-shadow: 0 0 15px #FF073A; margin-bottom: 5px;"><span
+    <div class="skills-modal rating-modal"
+      style="border-color: #FF073A; box-shadow: 0 0 30px #FF073A44; position: relative; width: 380px;">
+      <h2 style="color: #FF073A; text-shadow: 0 0 15px #FF073A; margin-top: 15px;"><span
           id="uber-defeat-boss-icon">👾</span> DEFEAT!</h2>
       <p id="uber-defeat-boss-name"
-        style="font-size: 20px; font-weight: 900; letter-spacing: 2px; margin: 15px 0; color: #B026FF;">BOSS NAME</p>
-      <p style="margin-bottom: 20px; opacity: 0.8;">TIME IS UP!</p>
-      <button class="btn-neon" id="btn-uber-defeat-restart" style="width: 220px; margin-bottom: 15px;">TRY
-        AGAIN</button>
-      <button class="btn-neon" id="btn-uber-defeat-back-to-map"
-        style="width: 220px; border-color: #B026FF; color: #B026FF;">RETURN TO MAP</button>
+        style="font-size: 18px; font-weight: 900; letter-spacing: 2px; margin: 10px 0; color: #B026FF;">BOSS NAME</p>
+      <p style="margin-bottom: 25px; color: #aaa;">TIME IS UP!</p>
+
+      <div style="display: flex; gap: 15px; justify-content: center; flex-direction: column; align-items: center;">
+        <button id="btn-uber-defeat-restart" class="btn-future-mechanic available"
+          style="position: relative; left: 0; top: 0; width: 220px; height: 50px; display: flex; transform: none; border-color: #00FF6A;">
+          <span class="btn-future-label" style="font-size: 9px; color: #00FF6A; margin-bottom: 2px;">Uber</span>
+          <span class="btn-future-value" style="font-size: 18px; color: #fff;">Try again</span>
+        </button>
+
+        <button id="btn-uber-defeat-back-to-map" class="btn-future-mechanic danger"
+          style="position: relative; left: 0; top: 0; width: 220px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: none; border-color: #B026FF; padding: 0;">
+          <span class="btn-future-label"
+            style="font-size: 9px; color: #B026FF; width: 100%; text-align: center;">Safety</span>
+          <span class="btn-future-value" style="font-size: 18px; color: #fff; width: 100%; text-align: center;">Return
+            to map</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- ══ Оверлей проигрыша ══ -->
-  <div id="defeat-overlay">
-    <div id="defeat-modal">
-      <h2>💀 Defeat</h2>
-      <p id="defeat-reason">Time is up!</p>
-      <button class="btn-neon" id="btn-restart-defeat">Try again</button>
-      <button class="btn-neon" id="btn-back-defeat">Back to previous level</button>
+  <div id="defeat-overlay" class="overlay">
+    <div class="skills-modal rating-modal"
+      style="border-color: #FF073A; box-shadow: 0 0 20px #FF073A44; position: relative; width: 380px;">
+      <h2 style="color: #FF073A; text-shadow: 0 0 10px #FF073A;">💀 Defeat</h2>
+      <p id="defeat-reason" style="color: #aaa; margin-bottom: 25px;">Time is up!</p>
+
+      <div style="display: flex; justify-content: center;">
+        <button id="btn-back-defeat" class="btn-future-mechanic danger"
+          style="position: relative; left: 0; top: 0; width: 180px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: none; padding: 0;">
+          <span class="btn-future-label"
+            style="font-size: 8px; color: #FF073A; width: 100%; text-align: center; line-height: 1; margin: 0; opacity: 0.8;">Grind</span>
+          <span class="btn-future-value"
+            style="font-size: 16px; color: #fff; width: 100%; text-align: center; line-height: 1.1;">Previous
+            Level</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- ══ Оверлей разблокировки навыков ══ -->
   <div id="skills-unlock-overlay" class="overlay">
-    <div class="skills-modal">
-      <h2 style="color: #B026FF; text-shadow: 0 0 10px #B026FF;">New Options!</h2>
-      <p>You've passed level 5. The 'Skills' tab (2nd tab from the bottom) is now available.</p>
-      <p>By killing Pentagons and Hexagons, you will receive a special currency (Essence) to buy powerful active
-        skills!</p>
-      <button class="btn-neon" id="btn-close-skills-unlock">Got it</button>
+    <div class="skills-modal rating-modal"
+      style="border-color: #B026FF; box-shadow: 0 0 20px #B026FF44; position: relative; width: 380px;">
+      <h2 style="color: #B026FF; text-shadow: 0 0 10px #B026FF;">⚡ New Skills!</h2>
+      <p style="font-size: 13px; line-height: 1.6; color: #ccc; margin-bottom: 20px;">
+        You've passed level 5! The 'Skills' tab is now available.<br><br>
+        Kill <b>Pentagons</b> <span
+          style="display:inline-block; width:12px; height:12px; background:#B026FF; clip-path:polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); vertical-align:middle; margin:0 2px;"></span>
+        and <b>Hexagons</b> <span
+          style="display:inline-block; width:13px; height:13px; background:#ddff00; clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); vertical-align:middle; margin:0 2px;"></span>
+        to earn <b>Essence</b> <span style="color:#B026FF; font-weight:bold; text-shadow: 0 0 5px #B026FF;">✧</span>,
+        which you can spend on powerful skills.
+      </p>
+
+      <button id="btn-close-skills-unlock" class="btn-future-mechanic available"
+        style="position: relative; left: 0; top: 0; width: 160px; height: 55px; margin: 0 auto; display: flex; transform: none; border-color: #B026FF;">
+        <span class="btn-future-label" style="font-size: 10px; color: #B026FF; margin-bottom: 2px;">Unlocked</span>
+        <span class="btn-future-value" style="font-size: 20px; color: #fff;">Got it</span>
+      </button>
     </div>
   </div>
 
   <!-- ══ Оверлей разблокировки Престижа ══ -->
   <div id="prestige-unlock-overlay" class="overlay">
-    <div class="skills-modal" style="border-color: #FFE400; box-shadow: 0 0 20px #FFE40044;">
-      <h2 style="color: #FFE400; text-shadow: 0 0 10px #FFE400;">Prestige Unlocked!</h2>
-      <p>You've passed level 35. The Prestige system (3rd tab) is now available.</p>
-      <p>By resetting progress, you get Prestige Points, which can be spent on powerful permanent enhancements!</p>
-      <button class="btn-neon" id="btn-close-prestige-unlock" style="border-color: #FFE400; color: #FFE400;">Let's
-        go!</button>
+    <div class="skills-modal rating-modal"
+      style="border-color: #FFE400; box-shadow: 0 0 20px #FFE40044; position: relative; width: 380px;">
+      <h2 style="color: #FFE400; text-shadow: 0 0 10px #FFE400;">⭐ Prestige!</h2>
+      <p style="font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 20px;">
+        You passed level 35! Reset progress back by 50% to receive **Prestige Points** for permanent upgrades.
+      </p>
+
+      <button id="btn-close-prestige-unlock" class="btn-future-mechanic available"
+        style="position: relative; left: 0; top: 0; width: 160px; height: 55px; margin: 0 auto; display: flex; transform: none; border-color: #FFE400;">
+        <span class="btn-future-label" style="font-size: 10px; color: #FFE400; margin-bottom: 2px;">Forever</span>
+        <span class="btn-future-value" style="font-size: 20px; color: #fff;">Got it</span>
+      </button>
     </div>
   </div>
 
@@ -383,6 +423,40 @@
       </button>
     </div>
   </div>
+
+  <!-- ══ Оверлей подтверждения престижа ══ -->
+  <div id="prestige-confirm-overlay" class="overlay">
+    <div class="skills-modal rating-modal"
+      style="border-color: #FFE400; box-shadow: 0 0 20px #FFE40044; position: relative; width: 380px;">
+      <button id="btn-close-prestige-modal" class="btn-close-map"
+        style="top: 15px; right: 15px; transform: none; background: rgba(255, 7, 58, 0.2); border-color: #FF073A;">X</button>
+
+      <h2 style="color: #FFE400; text-shadow: 0 0 10px #FFE400; margin-top: 15px; font-size: 20px;">PRESTIGE?</h2>
+      <p style="font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 25px; padding: 0 10px;">
+        Are you sure? Your progress will be reset to 50% of your current location, but you will receive Prestige Points
+        to upgrade your permanent stats.
+      </p>
+
+      <div style="display: flex; gap: 15px; justify-content: center;">
+        <button id="btn-prestige-confirm" class="btn-future-mechanic available"
+          style="position: relative; left: 0; top: 0; width: 140px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: none; border-color: #00FF6A; padding: 0;">
+          <span class="btn-future-label"
+            style="font-size: 8px; color: #00FF6A; width: 100%; text-align: center; line-height: 1; margin: 0; opacity: 0.8;">Reset</span>
+          <span class="btn-future-value"
+            style="font-size: 17px; color: #fff; width: 100%; text-align: center; line-height: 1.1;">Confirm</span>
+        </button>
+
+        <button id="btn-prestige-cancel" class="btn-future-mechanic danger"
+          style="position: relative; left: 0; top: 0; width: 140px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: none; padding: 0;">
+          <span class="btn-future-label"
+            style="font-size: 8px; color: #FF073A; width: 100%; text-align: center; line-height: 1; margin: 0; opacity: 0.8;">Keep</span>
+          <span class="btn-future-value"
+            style="font-size: 17px; color: #fff; width: 100%; text-align: center; line-height: 1.1;">Cancel</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="upgrade-tooltip"></div>
 
   <script src="config.js"></script>

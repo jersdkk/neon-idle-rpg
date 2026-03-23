@@ -1138,6 +1138,20 @@ body {
   box-shadow: 0 0 12px rgba(25, 255, 112, 0.5);
 }
 
+/* Опасная/отменяющая кнопка (красная) */
+.btn-future-mechanic.danger {
+  background: #140505;
+  border-color: #FF073A88;
+  box-shadow: 0 0 8px rgba(255, 7, 58, 0.2);
+}
+
+.btn-future-mechanic.danger:hover {
+  transform: scale(1.05);
+  background: #3d0f0f;
+  border-color: #FF073A;
+  box-shadow: 0 0 15px rgba(255, 7, 58, 0.5);
+}
+
 .btn-future-mechanic.available .btn-future-label {
   color: #00FF6A;
 }

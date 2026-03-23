@@ -407,8 +407,32 @@
         `;
         btnPrestige.textContent = '⭐ PRESTIGE';
         btnPrestige.addEventListener('click', () => {
-            if (confirm('Are you sure? Progress will be reset to 50% of your current location.')) {
-                doPrestige();
+            const confirmOvl = document.getElementById('prestige-confirm-overlay');
+            if (confirmOvl) {
+                confirmOvl.classList.add('visible');
+                
+                // Разовая привязка событий при открытии (или лучше вынести в initTab)
+                const btnConfirm = document.getElementById('btn-prestige-confirm');
+                const btnCancel = document.getElementById('btn-prestige-cancel');
+                const btnClose = document.getElementById('btn-close-prestige-modal');
+                
+                const closeConfirm = () => {
+                    confirmOvl.classList.remove('visible');
+                };
+                
+                // Очистка старых слушателей через замену узлов или просто проверку
+                // Для простоты в этом проекте часто делаем click напрямую
+                if (btnConfirm) btnConfirm.onclick = () => {
+                    closeConfirm();
+                    doPrestige();
+                };
+                if (btnCancel) btnCancel.onclick = closeConfirm;
+                if (btnClose) btnClose.onclick = closeConfirm;
+                
+                // Закрытие по фону
+                confirmOvl.onclick = (e) => {
+                    if (e.target === confirmOvl) closeConfirm();
+                };
             }
         });
         btnPrestige.addEventListener('mouseenter', () => {

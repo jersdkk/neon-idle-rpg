@@ -128,16 +128,16 @@ const CONFIG = {
                 { id: 'critD1', label: 'Crit Damage I', type: 'critDamage', maxLevel: 5, valuePerLevel: 0.15, costPerLevel: 1, col: 2, row: 2, requires: 'critC1' },
                 { id: 'dmg4', label: 'Damage IV', type: 'damage', maxLevel: 5, valuePerLevel: 15, costPerLevel: 2, col: 3, row: 2, requires: 'critD1' },
                 { id: 'skillEssence2', label: 'Essence Bonus II', type: 'essenceBonus', maxLevel: 5, valuePerLevel: 0.5, costPerLevel: 1, col: 4, row: 2, requires: 'dmg4' },
-                { id: 'dmg5', label: 'Damage V', type: 'damage', maxLevel: 10, valuePerLevel: 22, costPerLevel: 3, col: 5, row: 2, requires: 'skillEssence2' },
+                { id: 'dmg5', label: 'Damage V', type: 'damage', maxLevel: 10, valuePerLevel: 22, costPerLevel: 2, col: 5, row: 2, requires: 'skillEssence2' },
                 { id: 'dmg2', label: 'Damage II', type: 'damage', maxLevel: 5, valuePerLevel: 16, costPerLevel: 2, col: 1, row: 1, requires: 'dmg1' },
                 { id: 'dmg3', label: 'Damage III', type: 'damage', maxLevel: 5, valuePerLevel: 22, costPerLevel: 3, col: 2, row: 1, requires: 'dmg2' },
                 { id: 'critD2', label: 'Crit Damage II', type: 'critDamage', maxLevel: 5, valuePerLevel: 0.15, costPerLevel: 2, col: 3, row: 1, requires: 'dmg3' },
                 { id: 'aspd3', label: 'Speed III', type: 'attackSpeed', maxLevel: 10, valuePerLevel: 0.02, costPerLevel: 1, col: 4, row: 1, requires: ['critD2', 'dmg4'] },
-                { id: 'dmg6', label: 'Damage VI', type: 'damage', maxLevel: 10, valuePerLevel: 30, costPerLevel: 4, col: 5, row: 1, requires: 'aspd3' },
+                { id: 'dmg6', label: 'Damage VI', type: 'damage', maxLevel: 10, valuePerLevel: 30, costPerLevel: 3, col: 5, row: 1, requires: 'aspd3' },
                 { id: 'areaDmg1', label: 'Area Damage', type: 'areaDamage', maxLevel: 1, valuePerLevel: 55, costPerLevel: 5, col: 3, row: -1, requires: ['skillEssence'] },
-                { id: 'areaDmgPlus1', label: 'AOE Damage Power', type: 'areaDamagePlus', maxLevel: 5, valuePerLevel: 0.05, costPerLevel: 3, col: 4, row: -1, requires: 'areaDmg1' },
+                { id: 'areaDmgPlus1', label: 'AOE Damage Power', type: 'areaDamagePlus', maxLevel: 5, valuePerLevel: 0.05, costPerLevel: 2, col: 4, row: -1, requires: 'areaDmg1' },
                 { id: 'areaRadius1', label: 'AOE Damage Area', type: 'areaRadius', maxLevel: 5, valuePerLevel: 5, costPerLevel: 2, col: 5, row: -1, requires: 'areaDmgPlus1' },
-                { id: 'areaDmgPlus2', label: 'AOE Damage Power', type: 'areaDamagePlus', maxLevel: 5, valuePerLevel: 0.05, costPerLevel: 3, col: 6, row: -1, requires: 'areaRadius1' },
+                { id: 'areaDmgPlus2', label: 'AOE Damage Power', type: 'areaDamagePlus', maxLevel: 5, valuePerLevel: 0.05, costPerLevel: 2, col: 6, row: -1, requires: 'areaRadius1' },
                 { id: 'aspd4', label: 'Speed IV', type: 'attackSpeed', maxLevel: 10, valuePerLevel: 0.02, costPerLevel: 1, col: 6, row: 2, requires: ['dmg5', 'dmg6'] },
                 { id: 'critD3', label: 'Crit Damage III', type: 'critDamage', maxLevel: 5, valuePerLevel: 0.1, costPerLevel: 2, col: 6, row: 0, requires: ['skillEssence3', 'dmg6'] },
                 { id: 'critC3', label: 'Crit Chance III', type: 'critChance', maxLevel: 5, valuePerLevel: 0.01, costPerLevel: 2, col: 6, row: 1, requires: 'dmg6' },
@@ -203,10 +203,10 @@ const CONFIG = {
 
         // Награды и фиксированные требования по убийствам после завершения очереди
         rewards: {
-            common: { xXP: 1.0, xEss: 10, kills: 150, color: '#ffffffff', label: 'Обычная', icon: 'image/box1.png' },
-            rare: { xXP: 1.5, xEss: 15, kills: 225, color: '#1119faff', label: 'Редкая', icon: 'image/box2.png' },
-            epic: { xXP: 2.0, xEss: 20, kills: 300, color: '#fb00ffff', label: 'Эпическая', icon: 'image/box3.png' },
-            legendary: { xXP: 4.0, xEss: 50, kills: 450, color: '#ffb300ff', label: 'Легендарная', icon: 'image/box4.png' }
+            common: { points: 1, xEss: 10, kills: 150, color: '#ffffffff', label: 'Обычная', icon: 'image/box1.png' },
+            rare: { points: 2, xEss: 15, kills: 225, color: '#1119faff', label: 'Редкая', icon: 'image/box2.png' },
+            epic: { points: 3, xEss: 20, kills: 300, color: '#fb00ffff', label: 'Эпическая', icon: 'image/box3.png' },
+            legendary: { points: 4, xEss: 40, kills: 450, color: '#ffb300ff', label: 'Легендарная', icon: 'image/box4.png' }
         },
     },
 };

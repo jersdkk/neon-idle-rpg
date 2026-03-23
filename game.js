@@ -913,10 +913,14 @@
         }
 
         if (type === 'xp') {
-            // ВЫДАЕМ ОПЫТ (xpToNext * xXP)
-            const xpAmount = Math.floor(player.xpToNext * reward.xXP);
-            grantXP(xpAmount);
-            showDOMReward(`+${formatNum(xpAmount)} XP`, reward.color);
+            // ВЫДАЕМ ОЧКИ ПРОКАЧКИ (Upgrade Points)
+            const pts = reward.points || 1;
+            if (window.UpgradeManager && window.UpgradeManager.addPoint) {
+                for (let i = 0; i < pts; i++) {
+                    window.UpgradeManager.addPoint();
+                }
+            }
+            showDOMReward(`+${pts} Points`, reward.color);
         } else {
             // ВЫДАЕМ ЭССЕНЦИЮ (essenceMult * xEss)
             const stats = getCurrentStats();
@@ -1363,7 +1367,7 @@
                         // Area Damage
                         const stats = hit.stats;
                         if (player.areaDamageRadius && player.areaDamageRadius > 0) {
-                            const radius = player.areaDamageRadius;
+                            const radius = player.areaDamageRadius * (arenaSize / 400);
                             const aoeMult = player.areaDamageMult || 0.5;
                             const aoeDmg = Math.max(1, Math.round(hit.damage * aoeMult));
 
@@ -2354,9 +2358,10 @@
         const dmg = Math.round(stats.damage * cfg.damageMultiplier * grenadeLvl);
 
         // Explosion - damage all in radius
+        const explosionRadius = cfg.radius * (arenaSize / 400);
         aliveEnemies.forEach(e => {
             const d = dist(target, e);
-            if (d <= cfg.radius) {
+            if (d <= explosionRadius) {
                 e.hp -= dmg;
                 e.hitFlash = 1;
                 spawnDamageNumber(e.x, e.y - e.size, dmg, true, cfg.color);
@@ -2387,7 +2392,7 @@
         visualEffects.push({
             type: 'explosion',
             x: target.x, y: target.y,
-            radius: cfg.radius,
+            radius: explosionRadius,
             shards: shards,
             color: cfg.color,
             life: 0.7,

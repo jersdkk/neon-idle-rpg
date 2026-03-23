@@ -341,20 +341,14 @@
                 logMsg += `🎁 <b style="text-transform: uppercase;">${reward.label} коробка #${giftBox.openedCount + 1}</b> (Loc ${dispLvl}): `;
 
                 if (type === 'xp') {
-                    // ВЫДАЕМ ОПЫТ (xpToNext * xXP)
-                    const xpReq = xpForLevel(playerLvl);
-                    const xpAmount = Math.floor(xpReq * reward.xXP);
-                    currentXP += xpAmount;
+                    // ВЫДАЕМ ОЧКИ ПРОКАЧКИ (Upgrade Points)
+                    const pts = reward.points || 1;
+                    currentPoints += pts;
 
-                    logMsg += `<span style="color: #00FF6A; font-weight: bold;">+${xpAmount.toLocaleString()} XP</span>`;
-
-                    // Уровни могут вырасти сразу несколько раз
-                    while (currentXP >= xpForLevel(playerLvl)) {
-                        currentXP -= xpForLevel(playerLvl);
-                        playerLvl++;
-                        currentPoints++;
-                        runSpending(dispLvl);
-                    }
+                    logMsg += `<span style="color: #00FF6A; font-weight: bold;">+${pts} Points</span>`;
+                    
+                    // Пытаемся потратить полученные очки сразу
+                    runSpending(dispLvl);
                 } else {
                     // ВЫДАЕМ ЭССЕНЦИЮ
                     const pStats = window.Scaling.getPrestigeStats(prestigeSkills);
@@ -577,7 +571,8 @@
                     totalLosses,
                     totalTimeSeconds,
                     playerLvl,
-                    totalPrestiges
+                    totalPrestiges,
+                    totalGiftBoxesOpened: giftBox.openedCount
                 };
             }
 
@@ -586,26 +581,7 @@
 
             let locLvl = 1;
             while (locLvl <= maxLocLevel) {
-                // ЗАХВАТ ДПС ПЕРЕД ЛОКАЦИЕЙ (чтобы на боссах видеть ДПС входа, а не выхода)
                 let curDpsAtStart = getFullDPS(playerStats, true);
-                if (locLvl > maxLevelReached) {
-                    dpsCurve[locLvl - 1] = curDpsAtStart;
-                    initialPrestigesAtLevel[locLvl - 1] = totalPrestiges;
-                    initialPlayerLvlCurve[locLvl - 1] = playerLvl;
-                    maxLevelReached = locLvl;
-                }
-                prestigeDpsCurve[locLvl - 1] = curDpsAtStart;
-                prestigesAtLevel[locLvl - 1] = totalPrestiges;
-                playerLvlCurve[locLvl - 1] = playerLvl;
-
-                // Собираем данные по XP для этой локации
-                let stageXpGain = 0;
-                const stageEnemies = getEnemiesForStage(locLvl);
-                stageEnemies.forEach(e => stageXpGain += Math.floor(e.level * e.xpMultiplier));
-                xpGainCurve[locLvl - 1] = stageXpGain;
-                xpReqCurve[locLvl - 1] = xpForLevel(playerLvl);
-                playerLvlCurve[locLvl - 1] = playerLvl;
-
                 const isBossStage = window.Scaling.isBossLevel(locLvl);
 
                 if (withDeathAtBoss && isBossStage) {
@@ -957,6 +933,23 @@
                     }
                 }
 
+                // ЗАХВАТ ДАННЫХ В КОНЦЕ ЛОКАЦИИ (после всех покупок и фарма)
+                let finalDps = getFullDPS(playerStats, true);
+                if (locLvl > maxLevelReached) {
+                    dpsCurve[locLvl - 1] = finalDps;
+                    initialPrestigesAtLevel[locLvl - 1] = totalPrestiges;
+                    initialPlayerLvlCurve[locLvl - 1] = playerLvl;
+                    maxLevelReached = locLvl;
+                }
+                prestigeDpsCurve[locLvl - 1] = finalDps;
+                prestigesAtLevel[locLvl - 1] = totalPrestiges;
+                playerLvlCurve[locLvl - 1] = playerLvl;
+
+                let stageXpGain = 0;
+                getEnemiesForStage(locLvl).forEach(e => stageXpGain += Math.floor(e.level * e.xpMultiplier));
+                xpGainCurve[locLvl - 1] = stageXpGain;
+                xpReqCurve[locLvl - 1] = xpForLevel(playerLvl);
+
                 locLvl++;
             }
             let summary = buildSummary();
@@ -998,9 +991,9 @@
                     <div>• Локаций пройдено: <b style="color: #fff;">${maxLevel}</b></div>
                     <div>• Проигрышей: <b style="color: #ffcc00;">${sum.totalLosses}</b></div>
                     <div>• Общее время: <b style="color: #00ff00;">${hours}ч ${mins}м ${secs}с</b></div>
-                    <div>• Идеальный уровень: <b style="color: #24dbe9;" title="Без единой смерти (как в вашей игре)">${sumIdeal.playerLvl}</b></div>
                     <div>• Финальный уровень: <b style="color: #d725da;" title="С учетом фарма после смертей">${sum.playerLvl}</b></div>
                     <div>• Сбросов (Престиж): <b style="color: #FFE400;">${sum.totalPrestiges}</b></div>
+                    <div>• Коробок открыто: <b style="color: #ffb300;">${sum.totalGiftBoxesOpened}</b></div>
                 `;
             }
 
