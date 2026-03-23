@@ -316,6 +316,86 @@
             let loggedBosses = {}; // Отслеживание пройденных боссов
             let bossCounter = 0;   // Порядковый номер босса в логе
 
+            // Состояние коробки с подарком (Gift Box)
+            let giftBox = {
+                kills: 0,
+                requiredKills: CONFIG.giftBox.fixedRequirements[0],
+                openedCount: 0,
+                currentRarity: CONFIG.giftBox.fixedSequence[0]
+            };
+
+            function simOpenGiftBox(dispLvl) {
+                const rarity = giftBox.currentRarity;
+                const reward = CONFIG.giftBox.rewards[rarity];
+
+                // Определение типа награды (XP или Essence)
+                let type = 'xp';
+                if (giftBox.openedCount < CONFIG.giftBox.fixedRewardTypes.length) {
+                    type = CONFIG.giftBox.fixedRewardTypes[giftBox.openedCount];
+                } else {
+                    // Псевдо-рандом 50/50
+                    type = (Math.abs(Math.sin(giftBox.openedCount * 456.789 + dispLvl)) % 1) < 0.5 ? 'xp' : 'essence';
+                }
+
+                let logMsg = `<div style="color: ${reward.color}; background: rgba(0,0,0,0.3); padding: 2px 8px; margin: 4px 0; border-radius: 4px; border-left: 4px solid ${reward.color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px;">`;
+                logMsg += `🎁 <b style="text-transform: uppercase;">${reward.label} коробка #${giftBox.openedCount + 1}</b> (Loc ${dispLvl}): `;
+
+                if (type === 'xp') {
+                    // ВЫДАЕМ ОПЫТ (xpToNext * xXP)
+                    const xpReq = xpForLevel(playerLvl);
+                    const xpAmount = Math.floor(xpReq * reward.xXP);
+                    currentXP += xpAmount;
+
+                    logMsg += `<span style="color: #00FF6A; font-weight: bold;">+${xpAmount.toLocaleString()} XP</span>`;
+
+                    // Уровни могут вырасти сразу несколько раз
+                    while (currentXP >= xpForLevel(playerLvl)) {
+                        currentXP -= xpForLevel(playerLvl);
+                        playerLvl++;
+                        currentPoints++;
+                        runSpending(dispLvl);
+                    }
+                } else {
+                    // ВЫДАЕМ ЭССЕНЦИЮ
+                    const pStats = window.Scaling.getPrestigeStats(prestigeSkills);
+                    const totalEssenceMult = playerStats.essenceMult * (pStats ? pStats.essenceMult : 1);
+                    const essAmount = Math.floor(totalEssenceMult * reward.xEss);
+                    currentEssence += essAmount;
+
+                    logMsg += `<span style="color: #B026FF; font-weight: bold;">+${essAmount.toLocaleString()} эссенции</span>`;
+                }
+                logMsg += `</div>`;
+
+                if (withDeathAtBoss) {
+                    logs.push(logMsg);
+                }
+
+                giftBox.openedCount++;
+                giftBox.kills = 0;
+
+                const seq = CONFIG.giftBox.fixedSequence;
+                const reqs = CONFIG.giftBox.fixedRequirements;
+
+                if (giftBox.openedCount < seq.length) {
+                    giftBox.currentRarity = seq[giftBox.openedCount];
+                    giftBox.requiredKills = reqs[giftBox.openedCount];
+                } else {
+                    // Случайный ролл следующей редкости (детерминированный для симулятора)
+                    const weights = CONFIG.giftBox.rarityWeights;
+                    const total = Object.values(weights).reduce((a, b) => a + b, 0);
+                    let r = (Math.abs(Math.sin(giftBox.openedCount * 987.654)) * 10000) % total;
+                    let rar = 'common';
+                    for (const [k, v] of Object.entries(weights)) {
+                        if (r < v) { rar = k; break; }
+                        r -= v;
+                    }
+                    giftBox.currentRarity = rar;
+                    giftBox.requiredKills = CONFIG.giftBox.rewards[rar].kills;
+                }
+
+                tryBuySkills(dispLvl);
+            }
+
 
 
             // Навешиваем начальные уровни навыков (screen2) из аргумента
@@ -564,6 +644,15 @@
 
                                 currentXP += Math.floor(e.level * e.xpMultiplier);
                                 earnEssence(e, f);
+
+                                // Считаем убийство для коробки (при фарме)
+                                if (giftBox.kills < giftBox.requiredKills) {
+                                    giftBox.kills++;
+                                    if (giftBox.kills >= giftBox.requiredKills) {
+                                        simOpenGiftBox(f);
+                                    }
+                                }
+
                                 while (currentXP >= xpForLevel(playerLvl)) {
                                     currentXP -= xpForLevel(playerLvl);
                                     playerLvl++;
@@ -703,7 +792,7 @@
                         if (!loggedBosses[locLvl]) {
                             loggedBosses[locLvl] = true;
                             bossCounter++;
-                            
+
                             const killDps = getFullDPS(playerStats, true);
                             const initialDps = firstEntryDpsPerBoss[locLvl] || curDpsAtStart;
                             const reqDpsVal = (bossHPCheck / bossCfg.timeoutSeconds) + 1;
@@ -722,7 +811,7 @@
                                     <span style="color: #888;">ДПС убийства:</span> <span style="color: #24dbe9;">${format(killDps)}</span>
                                 </div>
                             `);
-                            
+
                             logs.push(`<div style="color: #d725daff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #d725daff;">Игрок прошел босса</b> Попыток: ${attemptsPerBoss[locLvl] + 1}</div>`);
                         }
                     }
@@ -740,6 +829,15 @@
 
                     currentXP += Math.floor(enemy.level * enemy.xpMultiplier);
                     earnEssence(enemy, locLvl);
+
+                    // Считаем убийство для коробки
+                    if (giftBox.kills < giftBox.requiredKills) {
+                        giftBox.kills++;
+                        if (giftBox.kills >= giftBox.requiredKills) {
+                            simOpenGiftBox(locLvl);
+                        }
+                    }
+
                     while (currentXP >= xpForLevel(playerLvl)) {
                         currentXP -= xpForLevel(playerLvl);
                         playerLvl++;
