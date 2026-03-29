@@ -214,6 +214,12 @@
 
         if (window.SoundManager) window.SoundManager.playClick();
         refreshTurretTab();
+        
+        // Обновляем уведомления на вкладках через UpgradeManager
+        if (window.UpgradeManager && window.UpgradeManager.refreshNotifications) {
+            window.UpgradeManager.refreshNotifications();
+        }
+
         if (window.Game && window.Game.updateUI) window.Game.updateUI();
         if (window.Game && window.Game.save) window.Game.save();
     }
@@ -299,11 +305,32 @@
         }
     }
 
+    // Проверка, можно ли купить хоть что-то (для красной точки уведомлений)
+    function canAffordAny() {
+        const maxLevel = window.Game ? window.Game.getMaxReachedLevel() : 0;
+        if (maxLevel < CONFIG.turrets.slotUnlockLevels[0]) return false;
+
+        const keys = Object.keys(CONFIG.turrets.upgrades);
+        for (const key of keys) {
+            const upg = CONFIG.turrets.upgrades[key];
+            const level = turretState.upgradeLevels[key] || 0;
+            if (level < upg.maxLevel) {
+                if (turretState.gears >= getUpgradeCost(key)) return true;
+            }
+        }
+        return false;
+    }
+
     // ── Добавление валюты (вызывается при убийстве gear-врага) ──
     function addGears(amount) {
         turretState.gears += amount;
         updateGearDisplay();
         refreshTurretTab(); // Сразу обновляем вкладку, чтобы кнопки активировались
+        
+        // Обновляем уведомления на вкладках через UpgradeManager
+        if (window.UpgradeManager && window.UpgradeManager.refreshNotifications) {
+            window.UpgradeManager.refreshNotifications();
+        }
     }
 
     // ── GAME LOOP: обновление турелей ───────────────────────
@@ -680,6 +707,7 @@
         getGears: () => turretState.gears,
         refresh: refreshTurretTab,
         checkUnlock: checkTurretUnlock,
+        canAffordAny, // Для системы уведомлений
         save,
         load,
         getTurretDPS,

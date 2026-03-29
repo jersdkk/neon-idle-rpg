@@ -293,6 +293,11 @@
                 if (window.PrestigeManager && window.PrestigeManager.canAffordAny) {
                     canBuyAny = window.PrestigeManager.canAffordAny();
                 }
+            } else if (tabIndex === 4) {
+                // Вкладка турелей
+                if (window.TurretManager && window.TurretManager.canAffordAny) {
+                    canBuyAny = window.TurretManager.canAffordAny();
+                }
             } else {
                 // Обычные вкладки улучшений и навыков
                 const screenCfg = CONFIG.upgrades[`screen${tabIndex}`];
@@ -693,6 +698,7 @@
         refresh: () => { renderTree(state.activeTab); updatePointsDisplay(); },
         getLevels: () => state.currentLevels,
         applyToPlayer: applyAllUpgrades,
+        refreshNotifications: checkNotifications, // Экспортируем для других модулей
         switchTab: (n) => {
             if (!tabBtns) return;
             const btn = Array.from(tabBtns).find(b => parseInt(b.dataset.tab) === n);
