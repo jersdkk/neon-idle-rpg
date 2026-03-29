@@ -138,12 +138,18 @@
         const bottomRow = document.getElementById('prestige-bottom-row');
 
         if (!unlocked) {
-            grid.innerHTML = '<div style="width: 100%; text-align: center; color: #445; font-family: \'Orbitron\', sans-serif; font-size: 14px; margin-top: 50px;">Coming Soon</div>';
+            grid.style.height = '100%';
+            grid.innerHTML = `
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #445; font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: bold;">
+                    Unlocks after location 35
+                </div>
+            `;
             if (header) header.style.display = 'none';
             if (bottomRow) bottomRow.style.display = 'none';
             return;
         }
 
+        grid.style.height = ''; // Сбрасываем высоту при разблокировке
         if (header) header.style.display = 'flex';
         if (bottomRow) bottomRow.style.display = 'flex';
 

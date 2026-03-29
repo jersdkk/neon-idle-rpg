@@ -11,6 +11,9 @@
 
     // Флаг для предотвращения автосохранения при сбросе
     let isResetting = false;
+
+    // Флаг для запуска геймплея CrazyGames (только один раз за сессию)
+    let hasStartedCrazyGamesGameplay = false;
     VISUALS.enemies.types.forEach((vType, i) => {
         if (CONFIG.enemies.types[i]) Object.assign(CONFIG.enemies.types[i], vType);
     });
@@ -252,6 +255,10 @@
                     bgMusic.volume = VISUALS.sounds.musicVolume * VISUALS.sounds.masterVolume;
                     bgMusic.play().catch(e => console.warn("Main music play failed", e));
                 }
+            },
+            pauseMusic: () => {
+                if (bgMusic) bgMusic.pause();
+                if (bossMusic) bossMusic.pause();
             }
         };
 
@@ -295,6 +302,13 @@
 
     let skillCooldowns = { lightning: 0, haste: 0, power: 0, grenade: 0 };
     let skillActiveTimes = { haste: 0, power: 0 };
+
+    // ── Турель (PNG-спрайты) — временно отключено ───────────────────
+    // const turretBaseImg = new Image();
+    // turretBaseImg.src = 'image/turret_base.png';
+    // const turretBarrelImg = new Image();
+    // turretBarrelImg.src = 'image/turret_barrel.png';
+    // let turretAngleSmooth = -Math.PI / 2; // Текущий сглаженный угол поворота
 
     // ── Вспомогательные функции ─────────────────────────────
     function xpForLevel(lvl) {
@@ -358,20 +372,35 @@
         // Доступная ширина внутри контейнера #app
         const maxW = appContainer.clientWidth - 20;
 
-        // Новая высота панели: 380px
-        const upgradeH = 380;
-        // Уменьшим отступ на UI до 70, чтобы дать больше места игре
-        const uiSpace = 70;
-        const maxH = appContainer.clientHeight - upgradeH - uiSpace;
+        // Динамический и 100% точный расчет доступной высоты
+        const gameSec = document.getElementById('game-section');
+        let maxH = VISUALS.arena.size;
+
+        if (gameSec) {
+            // canvas.offsetTop автоматически содержит высоту всех элементов НАД холстом (таймер босса и т.д.)
+            const topUI = canvas.offsetTop;
+            const paddingBottom = 15; // минимальный зазор снизу
+
+            // Настоящее свободное место = жесткая высота всей секции МИНУС отступ сверху
+            maxH = gameSec.clientHeight - topUI - paddingBottom;
+        }
 
         // Квадратная арена
         arenaSize = Math.floor(Math.min(maxW, maxH, VISUALS.arena.size));
-
-        // Минимальный размер для предотвращения схлопывания, но достаточно мал чтобы влезть
         if (arenaSize < 150) arenaSize = 150;
 
-        canvas.width = arenaSize;
-        canvas.height = arenaSize;
+        // Для четкости на Retina/HiDPI экранах используем коэффициент плотности пикселей
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = arenaSize * dpr;
+        canvas.height = arenaSize * dpr;
+
+        // Визуальный размер в CSS остается прежним
+        canvas.style.width = arenaSize + 'px';
+        canvas.style.height = arenaSize + 'px';
+
+        // Масштабируем контекст отрисовки, чтобы все координаты в коде (0..arenaSize) 
+        // автоматически попадали в сетку dpr.
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         // Обновляем интерфейс
         if (player) {
@@ -456,32 +485,36 @@
             return [makeEnemy(bossType, locLvl, bx, by)];
         }
 
-        // Обычные враги — Базовый слой
-        layout.forEach(e => {
-            const type = CONFIG.enemies.types[e.typeIndex];
-            const eLvl = clamp(locLvl, 1, 999);
-            list.push(makeEnemy(type, eLvl, e.xFrac * arenaSize, e.yFrac * arenaSize));
-        });
+        // Обычные враги — полностью случайный спавн
+        const availableTypes = CONFIG.enemies.types.filter(t => 
+            (!t.minLevel || locLvl >= t.minLevel) && (!t.maxLevel || locLvl <= t.maxLevel)
+        );
+        const extraTypes = availableTypes.length > 0 ? availableTypes : [CONFIG.enemies.types[0]];
 
-        // Extra enemies — random positions strictly inside the diamond arena
-        const extraTypes = CONFIG.enemies.types;
-        // Уменьшаем минимальную дистанцию пропорционально уменьшению размеров
-        const minDist = CONFIG.enemies.minDistanceBetweenEnemies * spawnScale;
+        // Расчет адаптивного масштаба врагов (почти полностью отключен)
+        let globalEnemyScale = 1.0;
+        if (arenaSize < 400) globalEnemyScale = Math.max(0.9, arenaSize / 400);
 
-        for (let i = 0; i < extra; i++) {
+        // Расчет "идеальной" дистанции для равномерного заполнения всей площади арены
+        const diamondR = arenaSize * 0.45;
+        const diamondArea = 2 * diamondR * diamondR; // Площадь ромба ARENA
+        const idealSpacing = Math.sqrt(diamondArea / (totalPlanned + 2)) * 1.1; // +2 для учета игрока и запаса
+
+        const baseDistFrac = 25 / 750;
+        const minDist = baseDistFrac * arenaSize * spawnScale * globalEnemyScale;
+
+        for (let i = 0; i < totalPlanned; i++) {
             const type = extraTypes[randomInt(0, extraTypes.length - 1)];
             const eLvl = clamp(locLvl, 1, 999);
 
             let ex, ey, attempts = 0, isTooClose;
             do {
                 ex = randomInt(arenaSize * 0.1, arenaSize * 0.9);
-                ey = randomInt(arenaSize * 0.1, arenaSize * 0.7); // Wider range for more uniform distribution
+                ey = randomInt(arenaSize * 0.1, arenaSize * 0.7);
                 attempts++;
 
-                // Check distance to all other enemies and player spawn
+                // Сначала просто исключаем ОЧЕНЬ близкий спавн
                 isTooClose = list.some(other => dist({ x: ex, y: ey }, other) < minDist);
-
-                // Also check against player spawn to avoid spawning exactly on player
                 const playerSp = CONFIG.location.playerSpawn;
                 if (dist({ x: ex, y: ey }, { x: playerSp.xFrac * arenaSize, y: playerSp.yFrac * arenaSize }) < minDist) {
                     isTooClose = true;
@@ -490,16 +523,74 @@
             } while ((!isInsideDiamond(ex, ey) || isTooClose) && attempts < 150);
 
             if (attempts < 150) {
-                list.push(makeEnemy(type, eLvl, ex, ey));
+                list.push(makeEnemy(type, eLvl, ex, ey, globalEnemyScale));
+            }
+        }
+
+        // ── Глобальная релаксация для полной равномерности (50 итераций) ──
+        const pSp = CONFIG.location.playerSpawn;
+        // Безопасная зона игрока теперь масштабируется (10% от размера арены)
+        const playerSafeZoneRadius = arenaSize * 0.12; 
+        const playerDummy = { x: pSp.xFrac * arenaSize, y: pSp.yFrac * arenaSize, size: playerSafeZoneRadius };
+
+        for (let step = 0; step < 50; step++) {
+            for (let i = 0; i < list.length; i++) {
+                const e1 = list[i];
+                if (e1.isBoss) continue;
+
+                // Отталкивание от игрока (чуть менее агрессивное для мелких окон)
+                const dPx = e1.x - playerDummy.x;
+                const dPy = e1.y - playerDummy.y;
+                const dPsq = dPx * dPx + dPy * dPy;
+                const minPD = playerDummy.size;
+                if (dPsq < minPD * minPD && dPsq > 0) {
+                    const dP = Math.sqrt(dPsq);
+                    const overP = minPD - dP;
+                    e1.x += (dPx / dP) * overP * 0.2;
+                    e1.y += (dPy / dP) * overP * 0.2;
+                }
+
+                for (let j = i + 1; j < list.length; j++) {
+                    const e2 = list[j];
+                    if (e2.isBoss) continue;
+
+                    const dx = e1.x - e2.x;
+                    const dy = e1.y - e2.y;
+                    const dSq = dx * dx + dy * dy;
+                    
+                    // Используем ИДЕАЛЬНОЕ расстояние для расталкивания (spread)
+                    // Но не меньше физического размера
+                    const minD = Math.max((e1.size + e2.size) * 0.8, idealSpacing); 
+                    
+                    if (dSq < minD * minD && dSq > 0) {
+                        const d = Math.sqrt(dSq);
+                        const overlap = minD - d;
+
+                        // Плавное расталкивание к свободному месту
+                        const pushForce = 0.3 * (1 - step / 50); 
+                        const pushX = (dx / d) * overlap * pushForce;
+                        const pushY = (dy / d) * overlap * pushForce;
+
+                        e1.x += pushX; e1.y += pushY;
+                        e2.x -= pushX; e2.y -= pushY;
+
+                        // Сдерживание внутри арены (мягкое)
+                        if (!isInsideDiamond(e1.x, e1.y)) { e1.x -= pushX * 1.05; e1.y -= pushY * 1.05; }
+                        if (!isInsideDiamond(e2.x, e2.y)) { e2.x += pushX * 1.05; e2.y += pushY * 1.05; }
+                    }
+                }
             }
         }
 
         return list;
     }
 
-    function makeEnemy(type, level, x, y) {
+    function makeEnemy(type, level, x, y, scale = 1.0) {
         const bossCfg = CONFIG.enemies.boss;
         const isBoss = type.name === bossCfg.name;
+
+        // Определяем визуальные параметры типа
+        const vCfg = VISUALS.enemies.types.find(t => t.name === type.name) || VISUALS.enemies.types[0];
 
         let hp;
         if (isBoss) {
@@ -522,15 +613,16 @@
             maxHP: hp,
             isBoss: isBoss,
             xpMultiplier: isBoss ? window.Scaling.getBossXPMultiplier(level) : (type.xpMultiplier || 0),
-            shape: type.shape,
-            color: type.color,
-            glowColor: type.glowColor,
-            size: type.size,
+            shape: type.shape || vCfg.shape,
+            color: type.color || vCfg.color,
+            glowColor: type.glowColor || vCfg.glowColor,
+            size: (isBoss ? (CONFIG.player.size * bossCfg.sizeMultiplier) : (vCfg.size)) * scale,
             alive: true,
             hitFlash: 0,
             deathFade: 1,
 
             essenceDrop: isBoss ? window.Scaling.getBossEssenceDrop(level) : (type.essenceDrop || 0),
+            gearDrop: isBoss ? 0 : (type.gearDrop || 0), // Детали для турелей
             // Анимация отталкивания
             kbX: 0,
             kbY: 0,
@@ -564,7 +656,25 @@
     function initLevel(locLvl, keepPlayer) {
         console.log(`[INIT] Запуск уровня: ${locLvl}, Сохранить персонажа: ${keepPlayer}`);
         resize();
+
+        // Отправляем событие начала геймплея в CrazyGames SDK (один раз за сессию)
+        if (!hasStartedCrazyGamesGameplay && typeof window.CG !== 'undefined') {
+            setTimeout(() => {
+                if (window.CG && window.CG.game) {
+                    window.CG.game.gameplayStart();
+                    window.CG.game.loadingStop();
+                    console.log("[CrazyGames] Gameplay Start & Loading Stop executed with delay.");
+                }
+            }, 500);
+            hasStartedCrazyGamesGameplay = true;
+        }
+
         locationLevel = locLvl || (CONFIG && CONFIG.location ? CONFIG.location.startLevel : 1) || 1;
+
+        // Очистка ракет и взрывов турелей при смене уровня
+        if (window.TurretManager && window.TurretManager.clearRockets) {
+            window.TurretManager.clearRockets();
+        }
 
         // Видимость кнопки «Назад» только для боссов и уберов
         const isBossLvlInit = window.Scaling.isBossLevel(locationLevel);
@@ -697,6 +807,11 @@
             window.UpgradeManager.refresh();
         }
 
+        // ПРИНУДИТЕЛЬНЫЙ ПЕРЕСЧЕТ:
+        // Так как таймер босса или имя убер-босса показались или скрылись,
+        // нам нужно моментально пересчитать размер холста с новыми отступами!
+        window.dispatchEvent(new Event('resize'));
+
         // Сохраняем игру при смене уровня (если это не первая загрузка)
         if (keepPlayer) saveGame();
     }
@@ -820,7 +935,12 @@
                 skillsDps += (avgDmg * grnDmgMult * grnLvl) / grnCd;
             }
 
-            const finalSingleDps = singleTargetDps + skillsDps;
+            let turretDps = 0;
+            if (window.TurretManager && window.TurretManager.getTurretDPS) {
+                turretDps = window.TurretManager.getTurretDPS();
+            }
+
+            const finalSingleDps = singleTargetDps + skillsDps + turretDps;
             formatValue(finalSingleDps, statDps);
 
             // Динамический цвет DPS в зависимости от сложности босса — ИСПОЛЬЗУЕМ ТОЛЬКО SINGLE TARGET
@@ -982,7 +1102,7 @@
 
         // Разделяем эффекты: движение вверх плавно 4.5с, а растворение (opacity) занимает 1с и начинается с задержкой 3с
         rewardEl.style.transition = 'transform 3.0s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 1s ease 2s';
-        
+
         const locRow = document.getElementById('location-row') || document.body;
         locRow.appendChild(rewardEl);
 
@@ -1182,7 +1302,7 @@
             if (!next) {
                 // Все враги мертвы — победа
                 gameState = 'victory';
-                victoryOvl.classList.add('visible'); // Принудительно показываем оверлей
+                // victoryOvl.classList.add('visible'); // Удалено по просьбе пользователя для бесшовного перехода
 
                 if (currentUberBossId !== null) {
                     const bCfg = window.UBER_BOSSES_CONFIG.bosses[currentUberBossId];
@@ -1260,9 +1380,36 @@
                     if (window.Game && window.Game.save) window.Game.save();
                 }
 
+                // Проверка разблокировки турелей
+                if (window.TurretManager && window.TurretManager.checkUnlock) {
+                    window.TurretManager.checkUnlock();
+                }
+
                 // Обновляем UI перед выходом
                 updateSkillButtons();
-                initLevel(nextLvl, true);
+
+                // Автоматический переход: Реклама каждые 10 уровней
+                if (typeof window.CG !== 'undefined' && locationLevel % 10 === 0) {
+                    gameState = 'paused'; // Сразу ставим на паузу до начала рекламы
+                    (async () => {
+                        try {
+                            console.log("[CrazyGames] Ad transition started...");
+                            // Запускаем гонку Promise.race (Реклама против Тайм-аута 2.5 секунды)
+                            await Promise.race([
+                                window.CG.ad.requestAd('midgame'),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error("Ad Timeout Fallback")), 2500))
+                            ]);
+                            initLevel(nextLvl, true);
+                        } catch (error) {
+                            console.error("[CrazyGames] Ad fallback/rejected:", error);
+                            // Если произошла любая ошибка или реклама зависла из-за закэшированного старого кода
+                            // принудительно восстанавливаем статус игры и идем на следующий уровень
+                            initLevel(nextLvl, true);
+                        }
+                    })();
+                } else {
+                    initLevel(nextLvl, true);
+                }
                 return;
             }
             // Телепортируемся к ближайшему врагу с небольшим отступом
@@ -1272,8 +1419,11 @@
 
             // Вычисляем угол, чтобы стоять ПЕРЕД врагом
             const angle = Math.atan2(player.drawY - next.y, player.drawX - next.x);
-            // Динамический отступ: зависит от размера врага (размер врага + фиксированный зазор)
-            const offset = next.size + 15;
+            // Коэффициент масштабирования арены (400 — эталонный размер)
+            const arenaScaleFactor = arenaSize / 400;
+            // Динамический отступ: масштабируется вместе с аренной для корректного
+            // отображения на разных размерах окна браузера
+            const offset = (next.size + 15) * arenaScaleFactor;
             player.x = next.x + Math.cos(angle) * offset;
             player.y = next.y + Math.sin(angle) * offset;
 
@@ -1380,13 +1530,7 @@
                                         spawnDamageNumber(enemy.x, enemy.y - enemy.size, aoeDmg, false, '#FF4500');
                                         spawnHitParticles(enemy.x, enemy.y, enemy.color);
                                         if (enemy.hp <= 0) {
-                                            enemy.alive = false;
-                                            enemy.deathFade = 1;
-                                            const xpGain = Math.floor(enemy.level * enemy.xpMultiplier);
-                                            grantXP(xpGain);
-                                            addGiftBoxKill();
-                                            spawnDeathParticles(enemy.x, enemy.y, enemy.color, enemy.size, enemy.shape);
-                                            checkDeathForEssence(enemy);
+                                            handleEnemyDeath(enemy);
                                         }
                                     }
                                 }
@@ -1395,13 +1539,7 @@
 
                         // Check main target's death
                         if (target.hp <= 0) {
-                            target.alive = false;
-                            target.deathFade = 1;
-                            const xpGain = Math.floor(target.level * target.xpMultiplier);
-                            grantXP(xpGain);
-                            addGiftBoxKill();
-                            spawnDeathParticles(target.x, target.y, target.color, target.size, target.shape);
-                            checkDeathForEssence(target);
+                            handleEnemyDeath(target);
                         }
                     }
                     // Hit processed
@@ -1491,8 +1629,10 @@
                 // Start player dash animation
                 const ang = Math.atan2(target.y - player.drawY, target.x - player.drawX);
                 player.attackAnim = 1.0;
-                player.dashTargetX = Math.cos(ang) * 12.5;
-                player.dashTargetY = Math.sin(ang) * 12.5;
+                // Рывок атаки масштабируется с размером арены
+                const dashScale = arenaSize / 400;
+                player.dashTargetX = Math.cos(ang) * 12.5 * dashScale;
+                player.dashTargetY = Math.sin(ang) * 12.5 * dashScale;
 
                 // Save hit data to trigger at "contact" moment (peak of dash)
                 player.pendingHit = {
@@ -1506,30 +1646,118 @@
         }
     }
 
-    // ── Damage Numbers ─────────────────────────────────────────
-    function spawnDamageNumber(x, y, amount, isCrit = false, customColor = null) {
-        damageNumbers.push({
-            x, y,
-            text: isCrit ? `-${amount}` : `-${amount}`,
-            life: VISUALS.animation.damageNumberLife || 0.8,
-            maxLife: VISUALS.animation.damageNumberLife || 0.8,
-            color: customColor || (isCrit ? '#FF073A' : '#FFFFFF'), // Custom color or (Red for crit, white for normal)
-            isCrit: isCrit
+    const pendingDamageNumbers = [];
+
+    function spawnDamageNumber(x, y, amount, isCrit = false, customColor = null, instant = false) {
+        // Проверяем скорость атаки. Если <= 3.5 ударов в секунду, то выводим урон без задержки
+        if (!instant) {
+            const stats = getCurrentStats();
+            if (stats && stats.attackSpeed <= 3.5) {
+                instant = true;
+            }
+        }
+
+        // Мгновенный вылет (для медленных атак, скиллов, бомб, турелей) — без задержки
+        if (instant) {
+            let formattedAmount = amount;
+            if (formattedAmount >= 1e12) formattedAmount = (formattedAmount / 1e12).toFixed(1).replace(/\.0$/, '') + 'т';
+            else if (formattedAmount >= 1e9) formattedAmount = (formattedAmount / 1e9).toFixed(1).replace(/\.0$/, '') + 'б';
+            else if (formattedAmount >= 1e6) formattedAmount = (formattedAmount / 1e6).toFixed(1).replace(/\.0$/, '') + 'м';
+            else if (formattedAmount >= 1000) formattedAmount = (formattedAmount / 1000).toFixed(1).replace(/\.0$/, '') + 'к';
+            else formattedAmount = Math.floor(formattedAmount).toString();
+
+            const jitterX = (Math.random() - 0.5) * 24;
+            const jitterY = (Math.random() - 0.5) * 12;
+
+            damageNumbers.push({
+                x: x + jitterX,
+                y: y + jitterY,
+                text: `-${formattedAmount}`,
+                life: VISUALS.animation.damageNumberLife || 0.7,
+                maxLife: VISUALS.animation.damageNumberLife || 0.7,
+                color: customColor || (isCrit ? '#FF073A' : '#FFFFFF'),
+                isCrit: isCrit
+            });
+            return;
+        }
+
+        // Накопление урона персонажа за 300мс
+        let existing = null;
+        for (let i = 0; i < pendingDamageNumbers.length; i++) {
+            const p = pendingDamageNumbers[i];
+            const dx = p.x - x;
+            const dy = p.y - y;
+            // Ищем в радиусе 40 пикселей
+            if ((dx * dx + dy * dy) < 1600) {
+                existing = p;
+                break;
+            }
+        }
+
+        if (existing) {
+            existing.amount += amount;
+            if (isCrit) existing.isCrit = true; // Если хотя бы один урон - крит, общая цифра становится критом
+            if (customColor && isCrit) existing.color = customColor; // Приоритет цвету крита/скилла
+            return;
+        }
+
+        pendingDamageNumbers.push({
+            x: x,
+            y: y,
+            amount: amount,
+            isCrit: isCrit,
+            color: customColor,
+            timer: 0.3 // Задержка в 300мс перед вылетом объединенной цифры
         });
     }
 
     function updateDamageNumbers(dt) {
+        // Обработка ожидающего урона (вылет просуммированных цифр)
+        for (let i = pendingDamageNumbers.length - 1; i >= 0; i--) {
+            const p = pendingDamageNumbers[i];
+            p.timer -= dt;
+            if (p.timer <= 0) {
+                let formattedAmount = p.amount;
+                // Форматирование чисел: т - триллионы, б - миллиарды, м - миллионы, к - тысячи
+                if (formattedAmount >= 1e12) formattedAmount = (formattedAmount / 1e12).toFixed(1).replace(/\.0$/, '') + 'т';
+                else if (formattedAmount >= 1e9) formattedAmount = (formattedAmount / 1e9).toFixed(1).replace(/\.0$/, '') + 'б';
+                else if (formattedAmount >= 1e6) formattedAmount = (formattedAmount / 1e6).toFixed(1).replace(/\.0$/, '') + 'м';
+                else if (formattedAmount >= 1000) formattedAmount = (formattedAmount / 1000).toFixed(1).replace(/\.0$/, '') + 'к';
+                else formattedAmount = Math.floor(formattedAmount).toString();
+
+                const jitterX = (Math.random() - 0.5) * 24;
+                const jitterY = (Math.random() - 0.5) * 12;
+
+                damageNumbers.push({
+                    x: p.x + jitterX,
+                    y: p.y + jitterY,
+                    text: p.isCrit ? `-${formattedAmount}` : `-${formattedAmount}`,
+                    life: VISUALS.animation.damageNumberLife || 0.8,
+                    maxLife: VISUALS.animation.damageNumberLife || 0.8,
+                    color: p.color || (p.isCrit ? '#FF073A' : '#FFFFFF'),
+                    isCrit: p.isCrit
+                });
+
+                pendingDamageNumbers.splice(i, 1);
+            }
+        }
+
         for (let i = damageNumbers.length - 1; i >= 0; i--) {
             const d = damageNumbers[i];
             d.life -= dt;
-            // Account for dt for smooth animation at any framerate
-            d.y -= VISUALS.animation.damageNumberRiseSpeed * dt;
+            // Скорость подъёма адаптируется к размеру арены (окна)
+            const scale = arenaSize / 400;
+            d.y -= VISUALS.animation.damageNumberRiseSpeed * scale * dt;
             if (d.life <= 0) damageNumbers.splice(i, 1);
         }
     }
 
     // ── Particles ─────────────────────────────────────────────
+    const MAX_PARTICLES = 400; // Максимум частиц — предотвращает зависание при боссе
+
     function spawnHitParticles(x, y, color) {
+        // Не спавним частицы удара если массив уже переполнен
+        if (particles.length >= MAX_PARTICLES) return;
         for (let i = 0; i < 4; i++) {
             particles.push({
                 x, y,
@@ -1545,11 +1773,10 @@
 
     // Death particles: circles scattering based on enemy size
     function spawnDeathParticles(x, y, color, enemySize, enemyShape) {
-        // Number of particles: 20 to 50, increased by 50% from base calculation, proportional to enemy size
+        // Ограничиваем максимальное количество частиц смерти
         const baseSize = enemySize || 20;
-        // Base count (20-50) multiplied by 1.5, but not exceeding 50
-        const baseCount = Math.min(100, Math.max(20, baseSize * 1.2));
-        let count = Math.round(baseCount * 1.5);
+        const baseCount = Math.min(60, Math.max(15, baseSize * 1.0)); // Снижен с 100 до 60
+        let count = Math.round(baseCount);
 
         // For red enemies, reduce particle count by 30%
         if (color === '#FF073A') {
@@ -1895,16 +2122,18 @@
     function drawDamageNumbers() {
         for (const d of damageNumbers) {
             ctx.save();
-            ctx.globalAlpha = d.life / d.maxLife;
+            const alpha = d.life / d.maxLife;
+            ctx.globalAlpha = alpha;
             ctx.fillStyle = d.color;
 
             const scale = arenaSize / 400;
-            const fontSize = (d.isCrit ? 24 : 14) * scale;
+            const fontSize = (d.isCrit ? 18 : 14) * scale;
             ctx.font = `bold ${fontSize}px Orbitron`;
 
             ctx.textAlign = 'center';
             ctx.shadowColor = d.color;
-            ctx.shadowBlur = (d.isCrit ? 12 : 6) * scale;
+            // Свечение тоже затухает вместе с альфой для плавного исчезновения
+            ctx.shadowBlur = (d.isCrit ? 12 : 6) * scale * alpha;
             ctx.fillText(d.text, d.x, d.y);
             ctx.restore();
         }
@@ -1932,10 +2161,93 @@
         ctx.restore();
     }
 
+    /* ── Турель из PNG-спрайтов (временно отключено) ─────────────
+    function drawTurret() {
+        if (!turretBaseImg.complete || !turretBarrelImg.complete) return;
+
+        const scale = arenaSize / 400;
+        const cx = arenaSize / 2;
+        const cy = arenaSize * 0.94;
+
+        const baseSize = 60 * scale;
+        const barrelSize = 50 * scale;
+
+        let targetAngle = -Math.PI / 2;
+        if (player.targetEnemy && player.targetEnemy.alive) {
+            targetAngle = Math.atan2(
+                player.targetEnemy.y - cy,
+                player.targetEnemy.x - cx
+            );
+        }
+
+        let diff = targetAngle - turretAngleSmooth;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        turretAngleSmooth += diff * 0.12;
+
+        ctx.save();
+
+        ctx.drawImage(
+            turretBaseImg,
+            cx - baseSize / 2,
+            cy - baseSize / 2,
+            baseSize, baseSize
+        );
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(turretAngleSmooth);
+        ctx.drawImage(
+            turretBarrelImg,
+            -barrelSize / 2,
+            -barrelSize / 2,
+            barrelSize, barrelSize
+        );
+
+        if (player.attackAnim > 0.5) {
+            const flash = (player.attackAnim - 0.5) * 2;
+            const tipX = barrelSize * 0.48;
+            const flashSize = 14 * scale * flash;
+
+            ctx.globalCompositeOperation = 'lighter';
+
+            const grad = ctx.createRadialGradient(tipX, 0, 0, tipX, 0, flashSize);
+            grad.addColorStop(0, `rgba(255, 255, 220, ${0.9 * flash})`);
+            grad.addColorStop(0.3, `rgba(255, 200, 50, ${0.7 * flash})`);
+            grad.addColorStop(0.6, `rgba(255, 100, 20, ${0.3 * flash})`);
+            grad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(tipX, 0, flashSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            const grad2 = ctx.createRadialGradient(tipX, 0, 0, tipX, 0, flashSize * 1.8);
+            grad2.addColorStop(0, `rgba(100, 220, 255, ${0.35 * flash})`);
+            grad2.addColorStop(1, 'rgba(100, 220, 255, 0)');
+            ctx.fillStyle = grad2;
+            ctx.beginPath();
+            ctx.arc(tipX, 0, flashSize * 1.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        ctx.restore();
+        ctx.restore();
+    }
+    */
+
     // ── Main render ────────────────────────────────────────
     function render() {
         ctx.clearRect(0, 0, arenaSize, arenaSize);
         drawArena();
+        // drawTurret(); // Турель внизу арены (временно отключено)
+
+        // Турели (PNG-спрайты вокруг арены)
+        if (window.TurretManager && window.TurretManager.render) {
+            window.TurretManager.render(ctx, arenaSize);
+        }
+
         drawTeleportTrail();
 
         // Enemies
@@ -2091,15 +2403,22 @@
         const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
         lastTime = timestamp;
 
-        updateCombat(dt);
-        updateDamageNumbers(dt);
-        updateParticles(dt);
+        if (gameState === 'playing') {
+            updateCombat(dt);
+            updateDamageNumbers(dt);
+            updateParticles(dt);
 
-        // Update effects
-        for (let i = visualEffects.length - 1; i >= 0; i--) {
-            const eff = visualEffects[i];
-            eff.life -= dt;
-            if (eff.life <= 0) visualEffects.splice(i, 1);
+            // Обновление турелей (ракеты, взрывы, таймеры)
+            if (window.TurretManager && window.TurretManager.update) {
+                window.TurretManager.update(dt, enemies, arenaSize);
+            }
+
+            // Update effects
+            for (let i = visualEffects.length - 1; i >= 0; i--) {
+                const eff = visualEffects[i];
+                eff.life -= dt;
+                if (eff.life <= 0) visualEffects.splice(i, 1);
+            }
         }
 
         render();
@@ -2256,6 +2575,32 @@
                 window.UpgradeManager.addEssence(amount);
             }
         }
+        // Дроп ⚙️ Деталей для турелей
+        if (target.gearDrop && target.gearDrop > 0) {
+            if (window.TurretManager && window.TurretManager.addGears) {
+                window.TurretManager.addGears(target.gearDrop);
+            }
+        }
+    }
+
+    // Обработка смерти врага (общая логика для всех источников урона)
+    function handleEnemyDeath(target) {
+        if (!target || !target.alive) return;
+        target.alive = false;
+        target.deathFade = 1;
+
+        // Начисление опыта (теперь сразу при убийстве)
+        const xpGain = Math.floor(target.level * target.xpMultiplier);
+        grantXP(xpGain);
+
+        // Прогресс коробки с подарком
+        addGiftBoxKill();
+
+        // Визуальные эффекты смерти
+        spawnDeathParticles(target.x, target.y, target.color, target.size, target.shape);
+
+        // Проверка дропа эссенции и деталей
+        checkDeathForEssence(target);
     }
 
     function castLightning() {
@@ -2271,7 +2616,7 @@
         target.hp -= dmg;
         target.hitFlash = 1;
 
-        spawnDamageNumber(target.x, target.y - target.size, dmg, true, VISUALS.skills.lightning.color);
+        spawnDamageNumber(target.x, target.y - target.size, dmg, true, VISUALS.skills.lightning.color, true);
 
         // Visual lightning effect
         const generateSegments = (sx, sy, tx, ty, count, spread) => {
@@ -2291,8 +2636,11 @@
             return segs;
         };
 
-        const startY = Math.max(0, target.y - 180); // Уменьшаем высоту молнии
-        const mainSegments = generateSegments(target.x, startY, target.x, target.y, 10, 30);
+        // Коэффициент масштабирования молнии: все размеры зависят от текущей арены
+        const lightningScale = arenaSize / 400;
+
+        const startY = Math.max(0, target.y - 180 * lightningScale); // высота молнии
+        const mainSegments = generateSegments(target.x, startY, target.x, target.y, 10, 30 * lightningScale);
         const branches = [];
         // Создаем 3-4 случайных ответвления
         const branchCount = randomInt(3, 4);
@@ -2300,11 +2648,11 @@
             const startIdx = randomInt(1, 4);
             const startPos = mainSegments[startIdx];
             if (!startPos) continue;
-            const endX = startPos.x + (Math.random() - 0.5) * 80;
-            const endY = startPos.y + (Math.random() * 60);
+            const endX = startPos.x + (Math.random() - 0.5) * 80 * lightningScale;
+            const endY = startPos.y + (Math.random() * 60 * lightningScale);
             branches.push({
                 sx: startPos.x, sy: startPos.y,
-                segments: generateSegments(startPos.x, startPos.y, endX, endY, 5, 20)
+                segments: generateSegments(startPos.x, startPos.y, endX, endY, 5, 20 * lightningScale)
             });
         }
 
@@ -2318,11 +2666,11 @@
             color: (VISUALS.skills && VISUALS.skills.lightning.color) ? VISUALS.skills.lightning.color : '#00F0FF'
         });
 
-        // Lightning lines (particles)
+        // Частицы молнии — размер и диапазон разброса масштабируются
         for (let i = 0; i < 20; i++) {
             particles.push({
-                x: target.x + randomInt(-30, 30),
-                y: target.y - randomInt(0, 150),
+                x: target.x + randomInt(-30 * lightningScale, 30 * lightningScale),
+                y: target.y - randomInt(0, 150 * lightningScale),
                 vx: randomInt(-50, 50),
                 vy: Math.random() * 200,
                 life: 0.3, maxLife: 0.3,
@@ -2333,14 +2681,7 @@
 
 
         if (target.hp <= 0) {
-            target.alive = false;
-            target.deathFade = 1;
-            const xpGain = Math.floor(target.level * target.xpMultiplier);
-            grantXP(xpGain, true);
-            addGiftBoxKill();
-            spawnDeathParticles(target.x, target.y, target.color, target.size, target.shape);
-            checkDeathForEssence(target);
-
+            handleEnemyDeath(target);
         }
         return true;
     }
@@ -2364,26 +2705,22 @@
             if (d <= explosionRadius) {
                 e.hp -= dmg;
                 e.hitFlash = 1;
-                spawnDamageNumber(e.x, e.y - e.size, dmg, true, cfg.color);
+                spawnDamageNumber(e.x, e.y - e.size, dmg, true, cfg.color, true);
 
                 if (e.hp <= 0) {
-                    e.alive = false;
-                    e.deathFade = 1;
-                    grantXP(Math.floor(e.level * e.xpMultiplier), true);
-                    addGiftBoxKill();
-                    spawnDeathParticles(e.x, e.y, e.color, e.size, e.shape);
-                    checkDeathForEssence(e);
-
+                    handleEnemyDeath(e);
                 }
             }
         });
 
         const shards = [];
+        // Коэффициент масштабирования осколков: скорость и размер зависят от размера арены
+        const shardScale = arenaSize / 400;
         for (let i = 0; i < 60; i++) {
             shards.push({
                 angle: Math.random() * Math.PI * 2,
-                speed: 60 + Math.random() * 120, // Reduced speed for compact look
-                size: 2.5 + Math.random() * 4,
+                speed: (60 + Math.random() * 120) * shardScale, // скорость осколков масштабируется
+                size: (2.5 + Math.random() * 4) * shardScale,  // размер осколков масштабируется
                 shape: randomInt(0, 1) // 0 - triangle, 1 - diamond
             });
         }
@@ -2452,6 +2789,48 @@
         SoundManager.playClick();
         if (skillsUnlockOvl) skillsUnlockOvl.classList.remove('visible');
     });
+
+    // ── Rewarded Ad: Free Points ──
+    const btnRewardPoints = document.getElementById('btn-reward-points');
+    const rewardTooltip = document.getElementById('upgrade-tooltip');
+
+    if (btnRewardPoints) {
+        btnRewardPoints.addEventListener('mouseenter', (e) => {
+            if (rewardTooltip) {
+                rewardTooltip.innerHTML = `<b>Free Rewards</b><br><span style="color:#00FF6A">Watch an ad to get +3 Upgrade Points</span>`;
+                rewardTooltip.style.display = 'block';
+                rewardTooltip.style.left = (e.clientX + 10) + 'px';
+                rewardTooltip.style.top = (e.clientY + 10) + 'px';
+            }
+        });
+        btnRewardPoints.addEventListener('mousemove', (e) => {
+            if (rewardTooltip) {
+                rewardTooltip.style.left = (e.clientX + 10) + 'px';
+                rewardTooltip.style.top = (e.clientY + 10) + 'px';
+            }
+        });
+        btnRewardPoints.addEventListener('mouseleave', () => {
+            if (rewardTooltip) rewardTooltip.style.display = 'none';
+        });
+
+        btnRewardPoints.addEventListener('click', async () => {
+            if (window.SoundManager) window.SoundManager.playClick();
+
+            const success = await window.CG.ad.requestAd('rewarded');
+
+            if (success) {
+                if (window.UpgradeManager && window.UpgradeManager.addPoint) {
+                    for (let i = 0; i < 3; i++) {
+                        window.UpgradeManager.addPoint();
+                    }
+                    if (typeof showDOMReward === 'function') {
+                        showDOMReward("+3 Free Points", "#FFE400");
+                    }
+                }
+                saveGame();
+            }
+        });
+    }
 
     if (btnClosePrestigeUnlock) btnClosePrestigeUnlock.addEventListener('click', () => {
         SoundManager.playClick();
@@ -2526,7 +2905,7 @@
     if (btnSubmitRating) {
         btnSubmitRating.addEventListener('click', () => {
             console.log(`[RATING] User clicked Continue`);
-            
+
             // Трекинг события в аналитику
             if (typeof window.gtag_game_event === 'function') {
                 window.gtag_game_event('game_rated_continue', {
@@ -2558,51 +2937,101 @@
 
     resize();
 
+    // ── Принудительный пересчет после загрузки ─────────────
+    // Гарантирует, что шрифты и картинки (gift-box) не сдвинут холст
+    window.addEventListener('load', () => window.dispatchEvent(new Event('resize')));
+    if (document.fonts) {
+        document.fonts.ready.then(() => window.dispatchEvent(new Event('resize')));
+    }
+
     // ── Система сохранений ─────────────────────────────────
-    function saveGame() {
-        if (isResetting) return; // Предотвращаем перезапись чистого прогресса
+    let isSaving = false;
+    async function saveGame() {
+        if (isResetting || isSaving) return; // Предотвращаем конфликты и параллельные запросы к SDK
         if (!player || isNaN(locationLevel) || locationLevel < 1) {
             console.warn("[SAVE] Попытка сохранения в некорректном состоянии", { locationLevel, player });
             return;
         }
 
-        const data = {
-            locationLevel: Number(locationLevel),
-            maxReachedLevel: Number(maxReachedLevel),
-            player: {
-                level: player.level,
-                xp: player.xp,
-                // Сохраняем базовые характеристики
-                damage: player.damage,
-                attackSpeed: player.attackSpeed,
-                critChance: player.critChance,
-                critDamage: player.critDamage,
-                essenceMult: player.essenceMult,
-                xpToNext: player.xpToNext,
-                cooldownReduction: player.cooldownReduction,
-                areaDamageRadius: player.areaDamageRadius,
-                areaDamageMult: player.areaDamageMult,
-                shownSkillsInfo: player.shownSkillsInfo,
-                shownPrestigeInfo: player.shownPrestigeInfo,
-                shownRatingInfo: player.shownRatingInfo,
-                skills: player.skills,
-                giftBox: player.giftBox,
-                autoSkill: cbAutoSkill.checked
-            },
-            upgrades: window.UpgradeManager ? window.UpgradeManager.save() : null,
-            prestige: window.PrestigeManager ? window.PrestigeManager.save() : null,
-            timestamp: Date.now()
-        };
+        isSaving = true;
+        try {
 
-        localStorage.setItem('neon_rpg_save', JSON.stringify(data));
-        console.log(`[SAVE] Сохранено: Локация ${data.locationLevel}, Уровень персонажа ${player.level}`);
+            const data = {
+                locationLevel: Number(locationLevel),
+                maxReachedLevel: Number(maxReachedLevel),
+                player: {
+                    level: player.level,
+                    xp: player.xp,
+                    // Сохраняем базовые характеристики
+                    damage: player.damage,
+                    attackSpeed: player.attackSpeed,
+                    critChance: player.critChance,
+                    critDamage: player.critDamage,
+                    essenceMult: player.essenceMult,
+                    xpToNext: player.xpToNext,
+                    cooldownReduction: player.cooldownReduction,
+                    areaDamageRadius: player.areaDamageRadius,
+                    areaDamageMult: player.areaDamageMult,
+                    shownSkillsInfo: player.shownSkillsInfo,
+                    shownPrestigeInfo: player.shownPrestigeInfo,
+                    shownRatingInfo: player.shownRatingInfo,
+                    skills: player.skills,
+                    giftBox: player.giftBox,
+                    autoSkill: cbAutoSkill.checked
+                },
+                upgrades: window.UpgradeManager ? window.UpgradeManager.save() : null,
+                prestige: window.PrestigeManager ? window.PrestigeManager.save() : null,
+                turrets: window.TurretManager ? window.TurretManager.save() : null,
+                timestamp: Date.now()
+            };
+
+            const json = JSON.stringify(data);
+
+            // 1. Сохраняем локально (Fallback)
+            localStorage.setItem('neon_rpg_save', json);
+
+            // 2. Сохраняем в облако CrazyGames (если доступно)
+            if (window.CG && window.CG.data && window.CG.data.setItem) {
+                try {
+                    await window.CG.data.setItem('neon_rpg_save', json);
+                    console.log("[SAVE] Cloud Save Success");
+                } catch (e) {
+                    console.warn("[SAVE] Cloud Save Failed:", e);
+                }
+            }
+
+            console.log(`[SAVE] Сохранено: Локация ${data.locationLevel}, Уровень персонажа ${player.level}`);
+        } finally {
+            isSaving = false; // Освобождаем флаг после завершения всех процессов
+        }
     }
 
-    function loadGame() {
+    async function loadGame() {
         try {
-            const json = localStorage.getItem('neon_rpg_save');
+            let json = null;
+
+            // 1. ПРИОРИТЕТ: Облако CrazyGames
+            if (window.CG && window.CG.data && window.CG.data.getItem) {
+                try {
+                    json = await window.CG.data.getItem('neon_rpg_save');
+                    if (json) {
+                        console.log("[LOAD] ПРИОРИТЕТ: Загружено из облака CrazyGames SDK.");
+                        // Синхронизируем локальный кэш при успешной облачной загрузке
+                        localStorage.setItem('neon_rpg_save', json);
+                    }
+                } catch (e) {
+                    console.warn("[LOAD] Ошибка загрузки из SDK, пробуем localStorage:", e);
+                }
+            }
+
+            // 2. ФАЛЛБЭК: Локальная память (только если в облаке пусто или нет доступа к SDK)
             if (!json) {
-                console.log("[LOAD] Сохранение не найдено.");
+                json = localStorage.getItem('neon_rpg_save');
+                if (json) console.log("[LOAD] ФАЛЛБЭК: Загружено из localStorage.");
+            }
+
+            if (!json) {
+                console.log("[LOAD] Сохранение не найдено (ни в облаке, ни локально).");
                 return false;
             }
             const data = JSON.parse(json);
@@ -2634,6 +3063,15 @@
                 window.PrestigeManager.load(data.prestige);
             }
 
+            // 4. Загружаем данные турелей
+            if (data.turrets && window.TurretManager) {
+                window.TurretManager.load(data.turrets);
+            }
+            // Проверяем видимость вкладки турелей
+            if (window.TurretManager && window.TurretManager.checkUnlock) {
+                window.TurretManager.checkUnlock();
+            }
+
             console.log(`[LOAD] Successfully loaded! Location: ${locationLevel}, Character: lvl.${player.level}`);
             return true;
         } catch (e) {
@@ -2653,10 +3091,16 @@
         drawCircleEffect: (x, y, r, color) => {
             visualEffects.push({ type: 'explosion', x, y, radius: r, color, life: 0.3, maxLife: 0.3 });
         },
+        onEnemyKilled: handleEnemyDeath,
         // Для престижа: сброс до нужного уровня с сохранением прокачки
         initLevelExternal: (lvl) => initLevel(lvl, true),
         save: saveGame,
         load: loadGame,
+        spawnDamageNumber: spawnDamageNumber,
+        getEnemies: () => enemies,
+        getArenaSize: () => arenaSize,
+        getGameState: () => gameState,
+        setGameState: (s) => gameState = s,
         reset: () => {
             console.log("[DEBUG] Полный сброс игры (Жесткий)...");
             isResetting = true; // Блокируем любые новые сохранения
@@ -2671,8 +3115,12 @@
     };
 
     // ── Запуск ──────────────────────────────────────────────
-    window.addEventListener('DOMContentLoaded', () => {
-        const loaded = loadGame();
+    window.addEventListener('DOMContentLoaded', async () => {
+        if (window.CG && window.CG.game) window.CG.game.loadingStart();
+
+        // Ждем загрузки данных (Облако или Локально)
+        const loaded = await loadGame();
+
         if (!loaded) {
             initLevel(CONFIG.location.startLevel, false);
         } else {
@@ -2685,11 +3133,16 @@
         lastTime = performance.now();
         requestAnimationFrame(gameLoop);
 
+        if (window.CG && window.CG.game) {
+            window.CG.game.loadingStop();
+            window.CG.game.gameplayStart();
+        }
+
         // ── Авто-сохранение и надежность ───────────────────────
-        // 1. Каждые 30 секунд
+        // 1. Каждые 60 секунд (не нужно слишком часто, т.к. игра сохраняется на старте каждого уровня)
         setInterval(() => {
             saveGame();
-        }, 10000);
+        }, 60000);
 
         // 2. При закрытии вкладки
         window.addEventListener('beforeunload', () => {
@@ -2725,6 +3178,12 @@
     if (btnDbgNext) btnDbgNext.addEventListener('click', () => {
         SoundManager.playClick();
         initLevel(locationLevel + 1, true);
+    });
+
+    const btnDbgPlus50 = document.getElementById('btn-dbg-plus-50');
+    if (btnDbgPlus50) btnDbgPlus50.addEventListener('click', () => {
+        SoundManager.playClick();
+        initLevel(locationLevel + 50, true);
     });
 
     if (btnDbgLvl35) btnDbgLvl35.addEventListener('click', () => {
@@ -2779,6 +3238,12 @@
     });
 
     // ── Системные обработчики Uber-боссов ─────────────────────
+    // Отладка: добавление деталей (валюта турелей)
+    const btnDbgGears = document.getElementById('btn-dbg-add-gears');
+    if (btnDbgGears) btnDbgGears.addEventListener('click', () => {
+        SoundManager.playClick();
+        if (window.TurretManager) window.TurretManager.addGears(1000);
+    });
     const btnUberBackToMapV = document.getElementById('btn-uber-back-to-map');
     const btnUberBackToMapD = document.getElementById('btn-uber-defeat-back-to-map');
     const btnUberRestart = document.getElementById('btn-uber-defeat-restart');

@@ -60,6 +60,8 @@
   </noscript>
   <!-- /Yandex.Metrika counter -->
 
+  <!-- CrazyGames SDK v3 -->
+  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 </head>
 
 <body>
@@ -81,6 +83,10 @@
           <div id="essence-points-label" class="resource-chip" style="display: none;">
             <span class="chip-icon" style="color: #B026FF;">✧</span>
             <span id="essence-points">0</span>
+          </div>
+          <div id="gear-points-label" class="resource-chip" style="display: none;">
+            <span class="chip-icon" style="color: #FF8C00;">⚙</span>
+            <span id="gear-points">0</span>
           </div>
         </div>
 
@@ -128,6 +134,11 @@
           <div class="gift-box-progress">
             <div id="gift-box-fill" class="gift-box-fill"></div>
           </div>
+          <!-- Кнопка получения бесплатных очков за рекламу -->
+          <button id="btn-reward-points" class="btn-reward-box" style="display: none;">
+            <span class="reward-icon">📺</span>
+            <span class="reward-val">+3</span>
+          </button>
         </div>
       </div>
 
@@ -136,8 +147,11 @@
 
       <!-- Игровой холст -->
       <canvas id="game-canvas"></canvas>
+    </div> <!-- Конец #game-section -->
 
-      <!-- Чекбокс авто-скиллов над панелью -->
+    <!-- ══ ПАНЕЛЬ ХАРАКТЕРИСТИК И НАВЫКОВ (Центральная, Жесткая) ══ -->
+    <div id="stats-section">
+      <!-- Чекбокс авто-скиллов -->
       <div id="auto-skill-container">
         <label>
           <input type="checkbox" id="cb-auto-skill" checked> use auto
@@ -170,15 +184,18 @@
           <div class="stats-grid-row">
             <div class="stat-item" title="Crit Chance">
               <img src="image/crit%20chanse.png" class="stat-icon" alt="Crit Chance">
-              <div><span id="stat-crit-chance" style="font-weight: bold;">0</span><span class="stat-unit">%</span></div>
+              <div><span id="stat-crit-chance" style="font-weight: bold;">0</span><span class="stat-unit">%</span>
+              </div>
             </div>
             <div class="stat-item" title="Crit Damage">
               <img src="image/crit%20damag.png" class="stat-icon" alt="Crit Damage">
-              <div><span class="stat-unit">x</span><span id="stat-crit-dmg" style="font-weight: bold;">1.5</span></div>
+              <div><span class="stat-unit">x</span><span id="stat-crit-dmg" style="font-weight: bold;">1.5</span>
+              </div>
             </div>
             <div class="stat-item" title="Essence Multiplier">
               <span style="font-size:1.15vh; color: #B026FF; font-weight: bold;">✧</span>
-              <div><span class="stat-unit">x</span><span id="stat-ess-mult" style="font-weight: bold;">1.00</span></div>
+              <div><span class="stat-unit">x</span><span id="stat-ess-mult" style="font-weight: bold;">1.00</span>
+              </div>
             </div>
           </div>
         </div>
@@ -216,7 +233,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </div> <!-- Конец #stats-section -->
 
     <!-- ══ НИЖНЯЯ ЧАСТЬ — панель прокачки ══ -->
     <div id="upgrade-section">
@@ -225,6 +242,39 @@
       <div id="upgrade-tree-area">
         <!-- Здесь отрисовывается SVG-дерево -->
         <svg id="upgrade-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <!-- Контент вкладки 4 — Турели -->
+      <div id="turret-tab-content" style="display: none;">
+        <!-- Слоты турелей -->
+        <div id="turret-slots">
+          <div class="turret-slot locked" data-slot="0">
+            <span class="turret-lock-text">loc 50</span>
+          </div>
+          <div class="turret-slot locked" data-slot="1">
+            <span class="turret-lock-text">loc 100</span>
+          </div>
+          <div class="turret-slot locked" data-slot="2">
+            <span class="turret-lock-text">loc 200</span>
+          </div>
+          <div class="turret-slot locked" data-slot="3">
+            <span class="turret-lock-text">loc 500</span>
+          </div>
+        </div>
+
+        <!-- Апгрейды турелей -->
+        <div id="turret-upgrades">
+          <button class="turret-upgrade-btn" data-upgrade="damage">
+            <span class="turret-upgrade-cost"><span class="chip-icon" style="color: #FF8C00;">⚙</span><span
+                id="turret-cost-damage">5</span></span>
+            <span class="turret-upgrade-label">+ 10% damage</span>
+          </button>
+          <button class="turret-upgrade-btn" data-upgrade="attackSpeed">
+            <span class="turret-upgrade-cost"><span class="chip-icon" style="color: #FF8C00;">⚙</span><span
+                id="turret-cost-aspd">8</span></span>
+            <span class="turret-upgrade-label">+ 5% atack speed</span>
+          </button>
+        </div>
       </div>
 
       <!-- Нижние кнопки навигации 1–5 -->
@@ -275,7 +325,8 @@
         BOSS NAME</p>
       <div
         style="margin: 20px 0; background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; width: 100%; box-sizing: border-box;">
-        <p style="margin: 5px 0;">XP: <span id="uber-victory-xp" style="color: #00FF6A; font-weight: 700;">+0</span></p>
+        <p style="margin: 5px 0;">XP: <span id="uber-victory-xp" style="color: #00FF6A; font-weight: 700;">+0</span>
+        </p>
         <p style="margin: 5px 0;">Essence: <span id="uber-victory-essence"
             style="color: #B026FF; font-weight: 700;">+0</span></p>
       </div>
@@ -372,10 +423,32 @@
     </div>
   </div>
 
+  <!-- ══ Оверлей разблокировки турелей ══ -->
+  <div id="turrets-unlock-overlay" class="overlay">
+    <div class="skills-modal rating-modal"
+      style="border-color: #FF8C00; box-shadow: 0 0 20px #FF8C0044; position: relative; width: 380px;">
+      <h2 style="color: #FF8C00; text-shadow: 0 0 10px #FF8C00;">🔫 Turrets!</h2>
+      <p style="font-size: 13px; line-height: 1.6; color: #ccc; margin-bottom: 20px;">
+        You've passed level 50! The 'Turrets' tab is now available.<br><br>
+        Kill <b>Gear enemies</b> <span
+          style="display:inline-block; width:13px; height:13px; background:#FF8C00; clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); vertical-align:middle; margin:0 2px;"></span>
+        to earn <b>Details</b> <span style="color:#FF8C00; font-weight:bold; text-shadow: 0 0 5px #FF8C00;">⚙</span>,
+        which you can spend on turret upgrades.
+      </p>
+
+      <button id="btn-close-turrets-unlock" class="btn-future-mechanic available"
+        style="position: relative; left: 0; top: 0; width: 160px; height: 55px; margin: 0 auto; display: flex; transform: none; border-color: #FF8C00;">
+        <span class="btn-future-label" style="font-size: 10px; color: #FF8C00; margin-bottom: 2px;">Unlocked</span>
+        <span class="btn-future-value" style="font-size: 20px; color: #fff;">Got it</span>
+      </button>
+    </div>
+  </div>
+
   <!-- ══ Панель отладки (Debug) ══ -->
   <!--<div id="debug-panel" style="display: none;"></div>-->
-  <div id="debug-panel" style="display: none;">
+  <div id="debug-panel">
     <button id="btn-dbg-next-level">Next Lvl</button>
+    <button id="btn-dbg-plus-50">+50 Lvl</button>
     <button id="btn-dbg-lvl-35">Lvl 35</button>
     <button id="btn-dbg-max-skills" style="color: #B026FF;">Max Skills</button>
     <button id="btn-dbg-add-points">+10 Points</button>
@@ -383,6 +456,7 @@
     <button id="btn-dbg-add-essence-big">+20000 Ess.</button>
     <button id="btn-dbg-reset" style="color: #FF073A;">Reset Game</button>
     <button id="btn-dbg-fill-box" style="color: #FFD700;">Fill Box</button>
+    <button id="btn-dbg-add-gears" style="color: #FF8C00;">+1000 ⚙</button>
     <button id="btn-dbg-save" style="color: #00FF6A;">Save</button>
     <div id="debug-req-dps" style="color: #FFE400; font-size: 10px; margin-top: 5px; text-align: center;">Req. DPS: 0
     </div>
@@ -403,9 +477,8 @@
 
       <h2 style="color: #00F0FF; text-shadow: 0 0 10px #00F0FF; margin-top: 15px; font-size: 20px;">Thank You!</h2>
       <p style="font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 20px; padding: 0 10px;">
-        I am very glad that you are playing my game! If it's not too much trouble, please leave a comment on itch.io and
-        share your opinion. I would be happy to hear any suggestions for improvement. And I will be truly happy if you
-        rate the game! : )
+        I am very glad that you are playing my game! If it's not too much trouble, please rate the game and share your
+        opinion. I'll be very happy if you do so! Enjoy it! : )
       </p>
 
       <div class="rating-stars" style="margin-bottom: 25px;">
@@ -433,7 +506,8 @@
 
       <h2 style="color: #FFE400; text-shadow: 0 0 10px #FFE400; margin-top: 15px; font-size: 20px;">PRESTIGE?</h2>
       <p style="font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 25px; padding: 0 10px;">
-        Are you sure? Your progress will be reset to 50% of your current location, but you will receive Prestige Points
+        Are you sure? Your progress will be reset to 50% of your current location, but you will receive Prestige
+        Points
         to upgrade your permanent stats.
       </p>
 
@@ -459,6 +533,7 @@
 
   <div id="upgrade-tooltip"></div>
 
+
   <script src="config.js"></script>
   <script src="uber_bosses_config.js"></script>
   <script src="visuals.js"></script>
@@ -466,8 +541,9 @@
   <script src="game.js"></script>
   <script src="upgrades.js"></script>
   <script src="prestige.js"></script>
+  <script src="turrets.js"></script>
   <script src="uber_bosses_map.js"></script>
-
+  <script src="crazygames.js?v=2"></script>
 </body>
 
 </html>

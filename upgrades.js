@@ -378,8 +378,12 @@
 
         if (!screen) return;
 
-        if (!screen.nodes || screen.nodes.length === 0 || (tabIndex === 2 && window.Game && window.Game.getMaxReachedLevel && window.Game.getMaxReachedLevel() < 5)) {
-            // Сбрасываем размеры SVG до размеров контейнера, чтобы центрирование текста "50%" работало внутри видимой области
+        if (!screen || !screen.nodes || screen.nodes.length === 0 ||
+            (tabIndex === 2 && window.Game && window.Game.getMaxReachedLevel() < 5) ||
+            (tabIndex === 3 && window.Game && window.Game.getMaxReachedLevel() < 35) ||
+            (tabIndex === 5 && window.Game && window.Game.getMaxReachedLevel() < 100)) {
+
+            // Сбрасываем размеры SVG до размеров контейнера
             const parentW = svg.parentElement ? svg.parentElement.clientWidth : 480;
             const parentH = svg.parentElement ? svg.parentElement.clientHeight : 280;
             svg.style.width = parentW + 'px';
@@ -388,7 +392,15 @@
             const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             txt.setAttribute('x', '50%'); txt.setAttribute('y', '50%');
             txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('fill', '#445');
-            txt.textContent = 'Coming Soon';
+            txt.setAttribute('font-size', '16px');
+            txt.setAttribute('font-weight', 'bold');
+
+            const mLevel = window.Game ? window.Game.getMaxReachedLevel() : 0;
+            if (tabIndex === 2) txt.textContent = 'Unlocks after location 5';
+            else if (tabIndex === 3) txt.textContent = 'Unlocks after location 35';
+            else if (tabIndex === 5) txt.textContent = mLevel < 100 ? 'Unlocks after location 500' : 'Coming Soon';
+            else txt.textContent = 'Coming Soon';
+
             svg.appendChild(txt);
             return;
         }
@@ -651,13 +663,17 @@
             tabBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Синхронизируем отображение Престижа (вкладка 3)
+            // Синхронизируем отображение Престижа (вкладка 3) и Турелей (вкладка 4)
             // Используем rAF, чтобы сначала обновились классы активных вкладок
             requestAnimationFrame(() => {
                 if (window.PrestigeManager && window.PrestigeManager.showTab) {
                     window.PrestigeManager.showTab(tabIdx === 3);
                 }
-                
+                // Синхронизируем вкладку Турелей
+                if (window.TurretManager && window.TurretManager.showTab) {
+                    window.TurretManager.showTab(tabIdx === 4);
+                }
+
                 // Рендерим дерево навыков (для вкладок 1 и 2)
                 renderTree(state.activeTab, true);
                 updatePointsDisplay();
@@ -731,6 +747,9 @@
                 // Синхронизируем отображение (Престиж vs Обычное дерево)
                 if (window.PrestigeManager && window.PrestigeManager.showTab) {
                     window.PrestigeManager.showTab(state.activeTab === 3);
+                }
+                if (window.TurretManager && window.TurretManager.showTab) {
+                    window.TurretManager.showTab(state.activeTab === 4);
                 }
 
                 // Рендерим дерево с центрированием

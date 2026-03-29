@@ -86,9 +86,13 @@
         <div class="controls"
             style="display: flex; gap: 20px; text-align: left; align-items: flex-start; justify-content: space-between; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 250px;">
-                <label for="maxLevel">Считать до локации:</label>
-                <input type="number" id="maxLevel" value="100" min="10" max="1000"
-                    style="background:#333; color:#fff; border:1px solid #555; padding:5px; width: 250px; display: block; margin-top: 5px; margin-bottom: 15px;">
+                <label>Интервал локации (от и до):</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px; margin-bottom: 15px; width: 250px;">
+                    <input type="number" id="minLevel" value="1" min="1" max="1000"
+                        style="background:#333; color:#fff; border:1px solid #555; padding:5px; flex: 1;">
+                    <input type="number" id="maxLevel" value="100" min="10" max="1000"
+                        style="background:#333; color:#fff; border:1px solid #555; padding:5px; flex: 1;">
+                </div>
                 <label for="scaleType">Шкала Y:</label>
                 <select id="scaleType"
                     style="background:#333; color:#fff; border:1px solid #555; padding:5px; width: 250px; display: block; margin-top: 5px; margin-bottom: 15px;">
@@ -168,6 +172,7 @@
 
         function saveSettings() {
             const settings = {
+                minLevel: document.getElementById('minLevel').value,
                 maxLevel: document.getElementById('maxLevel').value,
                 scaleType: document.getElementById('scaleType').value,
                 playerBehavior: document.getElementById('playerBehavior').value,
@@ -183,14 +188,16 @@
             // Сохраняем видимость кривых на графиках
             if (chartInstance) {
                 chartInstance.data.datasets.forEach((ds, i) => {
-                    const meta = chartInstance.getDatasetMeta(i);
-                    if (meta.hidden === true) settings.visibility.balance.push(i);
+                    if (chartInstance.isDatasetVisible(i) === false) {
+                        settings.visibility.balance.push(i);
+                    }
                 });
             }
             if (xpChartInstance) {
                 xpChartInstance.data.datasets.forEach((ds, i) => {
-                    const meta = xpChartInstance.getDatasetMeta(i);
-                    if (meta.hidden === true) settings.visibility.xp.push(i);
+                    if (xpChartInstance.isDatasetVisible(i) === false) {
+                        settings.visibility.xp.push(i);
+                    }
                 });
             }
 
@@ -204,6 +211,7 @@
             const saved = localStorage.getItem('simulatorSettings');
             if (saved) {
                 const settings = JSON.parse(saved);
+                if (settings.minLevel) document.getElementById('minLevel').value = settings.minLevel;
                 if (settings.maxLevel) document.getElementById('maxLevel').value = settings.maxLevel;
                 if (settings.scaleType) document.getElementById('scaleType').value = settings.scaleType;
                 if (settings.playerBehavior) document.getElementById('playerBehavior').value = settings.playerBehavior;
@@ -268,23 +276,29 @@
                     level: locLvl,
                     xpMultiplier: type.xpMultiplier,
                     essenceDrop: type.essenceDrop || 0,
+                    gearDrop: type.gearDrop || 0,
+                    minLevel: type.minLevel || 0,
                     hp: window.Scaling.getEnemyHP(type, locLvl)
                 });
             });
 
+            let availTypes = CONFIG.enemies.types.filter(t => !t.minLevel || locLvl >= t.minLevel);
+            if (availTypes.length === 0) availTypes = CONFIG.enemies.types;
             for (let i = 0; i < countInfo.extra; i++) {
-                const type = CONFIG.enemies.types[i % CONFIG.enemies.types.length];
+                const type = availTypes[i % availTypes.length];
                 list.push({
                     level: locLvl,
                     xpMultiplier: type.xpMultiplier,
                     essenceDrop: type.essenceDrop || 0,
+                    gearDrop: type.gearDrop || 0,
+                    minLevel: type.minLevel || 0,
                     hp: window.Scaling.getEnemyHP(type, locLvl)
                 });
             }
             return list;
         }
 
-        function simulatePlayerDPS(maxLocLevel, activeSkills, initialPrestigeSkills, behavior, withDeathAtBoss = false) {
+        function simulatePlayerDPS(minLogLvl, maxLocLevel, activeSkills, initialPrestigeSkills, behavior, withDeathAtBoss = false) {
             let prestigeSkills = { ...initialPrestigeSkills };
             let playerStats = {
                 damage: CONFIG.player.baseDamage || 10,
@@ -300,6 +314,7 @@
             const logs = [];
             const bossLogs = [];
             const dpsCurve = [];
+            const turretDpsCurve = [];
             const prestigeDpsCurve = [];
             const prestigesAtLevel = [];
             const initialPrestigesAtLevel = [];
@@ -360,7 +375,7 @@
                 }
                 logMsg += `</div>`;
 
-                if (withDeathAtBoss) {
+                if (withDeathAtBoss && dispLvl >= minLogLvl) {
                     logs.push(logMsg);
                 }
 
@@ -455,7 +470,25 @@
                     const grnAreaMult = !isBoss ? 2.5 : 1;
                     skillsDps += (avgDmg * grn.damageMultiplier * currentSkillLevelsS2.skillGrenade * grnAreaMult) / (grn.cooldown * (1 - dynCDR));
                 }
-                return autoAtkDps + skillsDps;
+                
+                let tDps = getTurretDPS(maxLevelReached);
+
+                return autoAtkDps + skillsDps + tDps;
+            }
+            
+            // Расчет чистого урона турелей
+            function getTurretDPS(maxLvl) {
+                let activeTurrets = CONFIG.turrets.slotUnlockLevels.filter(l => maxLvl >= l).length;
+                if (activeTurrets <= 0) return 0;
+                const baseDmg = CONFIG.turrets.baseDamage;
+                const baseSpd = CONFIG.turrets.baseAttackSpeed;
+                const dmgLvl = currentTurretLevels.damage || 0;
+                const spdLvl = currentTurretLevels.attackSpeed || 0;
+                
+                const cDmg = baseDmg * Math.pow(1 + CONFIG.turrets.upgrades.damage.valuePerLevel, dmgLvl);
+                const cSpd = baseSpd + (spdLvl * CONFIG.turrets.upgrades.attackSpeed.valuePerLevel);
+                
+                return cDmg * cSpd * activeTurrets;
             }
 
             // Покупка лучшего навыка за эссенцию
@@ -531,7 +564,7 @@
                             let nextDps = getFullDPS(playerStats, true);
                             let diff = prevDps > 0 ? ((nextDps - prevDps) / prevDps * 100).toFixed(1) : 0;
                             let dpsFormat = nextDps > 1000000 ? (nextDps / 1000000).toFixed(2) + 'M' : (nextDps > 1000 ? (nextDps / 1000).toFixed(1) + 'K' : nextDps.toFixed(1));
-                            if (withDeathAtBoss) {
+                            if (withDeathAtBoss && dispLvl >= minLogLvl) {
                                 logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="color: #888;">Loc ${dispLvl} [P-Lvl ${playerLvl}]:</span> <b style="color: #ff9800;">🔶 ${bestSkill.label} Lv${currentSkillLevelsS2[bestSkill.id]}</b> (${cost} эсс.), ДПС <span style="color: #24dbe9;">${dpsFormat}</span>, <span style="color: #00cc1f;">+${diff}%</span></div>`);
                             }
                             bought = true;
@@ -556,6 +589,10 @@
 
             const bossCfg = CONFIG.enemies.boss;
 
+            // Детали (Gears) и Турели
+            let currentGears = 0;
+            let currentTurretLevels = { damage: 0, attackSpeed: 0 };
+
             function earnEssence(enemy, dispLvl) {
                 if (dispLvl < 5) return; // Эссенция только с 5-й локации
                 if (!enemy.essenceDrop || enemy.essenceDrop <= 0) return;
@@ -563,6 +600,33 @@
                 const totalEssenceMult = playerStats.essenceMult * pStats.essenceMult;
                 const amount = Math.floor(enemy.essenceDrop * totalEssenceMult);
                 if (amount > 0) currentEssence += amount;
+            }
+            
+            function tryBuyTurrets(dispLvl) {
+                if(dispLvl < 45) return;
+                const uCfg = CONFIG.turrets.upgrades;
+                let bought = true;
+                while(bought) {
+                    bought = false;
+                    Object.keys(uCfg).forEach(key => {
+                        let cfg = uCfg[key];
+                        let curl = currentTurretLevels[key] || 0;
+                        if (curl >= cfg.maxLevel) return;
+                        
+                        let cost = Math.floor(cfg.baseCost * Math.pow(cfg.costMultiplier, curl));
+                        if(currentGears >= cost) {
+                            currentGears -= cost;
+                            currentTurretLevels[key]++;
+                            bought = true;
+                            
+                            if (withDeathAtBoss && dispLvl >= minLogLvl) {
+                                let tDps = getTurretDPS(maxLevelReached);
+                                let dpsFormat = tDps > 1000000 ? (tDps / 1000000).toFixed(2) + 'M' : (tDps > 1000 ? (tDps / 1000).toFixed(1) + 'K' : tDps.toFixed(1));
+                                logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0, 210, 255, 0.1); padding: 2px 4px; border-left: 2px solid #00d2ff;"><span style="color: #888;">Loc ${dispLvl}:</span> <b>⚙️ Турель ${cfg.label} Lv${curl+1}</b> (${cost} Дет.), ДПС пушек: <span style="color: #00d2ff;">${dpsFormat}</span></div>`);
+                            }
+                        }
+                    });
+                }
             }
 
             function buildSummary() {
@@ -601,8 +665,10 @@
                         totalLosses++;
                         totalTimeSeconds += bossCfg.timeoutSeconds;
 
-                        logs.push(`<div style="color: #ffcc00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #ffcc00;">Игрок проиграл боссу! (Смерть #${totalLosses})</b> Откат на Loc ${farmStart} для фарма.</div>`);
-                        logs.push(`<div style="color: #666; font-style: italic;">--- Заход ${attemptsPerBoss[locLvl]} (Фарм Loc ${farmStart}–${locLvl - 1}) ---</div>`);
+                        if (locLvl >= minLogLvl) {
+                            logs.push(`<div style="color: #ffcc00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #ffcc00;">Игрок проиграл боссу! (Смерть #${totalLosses})</b> Откат на Loc ${farmStart} для фарма.</div>`);
+                            logs.push(`<div style="color: #666; font-style: italic;">--- Заход ${attemptsPerBoss[locLvl]} (Фарм Loc ${farmStart}–${locLvl - 1}) ---</div>`);
+                        }
 
                         // Фарм уровней между боссами
                         for (let f = farmStart; f < locLvl; f++) {
@@ -620,6 +686,9 @@
 
                                 currentXP += Math.floor(e.level * e.xpMultiplier);
                                 earnEssence(e, f);
+                                if (e.gearDrop && (!e.minLevel || f >= e.minLevel)) {
+                                    currentGears += e.gearDrop;
+                                }
 
                                 // Считаем убийство для коробки (при фарме)
                                 if (giftBox.kills < giftBox.requiredKills) {
@@ -636,9 +705,11 @@
                                     runSpending(f);
                                 }
                                 tryBuySkills(f);
+                                tryBuyTurrets(f);
                                 let currentDpsVal = getFullDPS(playerStats, true);
                                 if (f > maxLevelReached) {
                                     dpsCurve[f - 1] = currentDpsVal;
+                                    turretDpsCurve[f - 1] = getTurretDPS(maxLevelReached);
                                     initialPrestigesAtLevel[f - 1] = totalPrestiges;
                                 }
                                 prestigeDpsCurve[f - 1] = currentDpsVal;
@@ -685,7 +756,7 @@
                             didPrestige = true;
                             prestigePoints += pReward;
                             totalPrestiges++;
-                            if (withDeathAtBoss) {
+                            if (withDeathAtBoss && locLvl >= minLogLvl) {
                                 logs.push(`<div style="padding: 10px; border: 1px dashed #FFE400; background: #2a2000; margin: 10px 0; border-radius: 8px;">`);
                                 logs.push(`<b style="color: #FFE400; font-size: 1.1em;">⭐ [ПРЕСТИЖ]</b> <span style="color: #ccc;">Сброс с уровня ${locLvl} до ${Math.max(1, Math.floor(locLvl * 0.5))}</span>`);
                                 logs.push(`<div style="color: #00FF6A; font-weight: bold; margin-bottom: 5px;">Получено: +${pReward} очков престижа</div>`);
@@ -743,12 +814,14 @@
                             }
 
                             if (stuckCounter >= 10) {
-                                logs.push(`<div style="padding: 20px; border: 2px solid #FF073A; background: #200; color: #FF073A; font-weight: bold; margin-top: 20px; border-radius: 8px; text-align: center;">`);
-                                logs.push(`⚠ ОСТАНОВКА СИМУЛЯЦИИ: ТУПИК ПРОГРЕССИИ<br>`);
-                                logs.push(`<span style="font-size: 0.9em; color: #ccc; font-weight: normal;">Игрок совершил 10 престижей подряд на локации ${maxLevelReached}, не продвинувшись дальше. <br> Дальнейший расчет невозможен: не хватает ДПС или бонусов.</span>`);
-                                logs.push(`</div>`);
+                                if (locLvl >= minLogLvl) {
+                                    logs.push(`<div style="padding: 20px; border: 2px solid #FF073A; background: #200; color: #FF073A; font-weight: bold; margin-top: 20px; border-radius: 8px; text-align: center;">`);
+                                    logs.push(`⚠ ОСТАНОВКА СИМУЛЯЦИИ: ТУПИК ПРОГРЕССИИ<br>`);
+                                    logs.push(`<span style="font-size: 0.9em; color: #ccc; font-weight: normal;">Игрок совершил 10 престижей подряд на локации ${maxLevelReached}, не продвинувшись дальше. <br> Дальнейший расчет невозможен: не хватает ДПС или бонусов.</span>`);
+                                    logs.push(`</div>`);
+                                }
                                 let summary = buildSummary();
-                                return { dpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, xpReqCurve, xpGainCurve, playerLvlCurve, initialPlayerLvlCurve, logs, bossLogs, summary };
+                                return { dpsCurve, turretDpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, xpReqCurve, xpGainCurve, playerLvlCurve, initialPlayerLvlCurve, logs, bossLogs, summary };
                             }
 
                             locLvl = Math.max(1, Math.floor(locLvl * 0.5));
@@ -760,9 +833,11 @@
 
                     const bossHPCheck = window.Scaling.getBossHP(bossCfg, locLvl);
                     if (attemptsPerBoss[locLvl] >= 30) {
-                        logs.push(`<div style="color: #ff3333;"><b>⚠ Босс непобедим после 30 попыток! Остановка симуляции.</b></div>`);
+                        if (locLvl >= minLogLvl) {
+                            logs.push(`<div style="color: #ff3333;"><b>⚠ Босс непобедим после 30 попыток! Остановка симуляции.</b></div>`);
+                        }
                         let summary = buildSummary();
-                        return { dpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, logs, bossLogs, summary };
+                        return { dpsCurve, turretDpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, logs, bossLogs, summary };
                     } else if (getFullDPS(playerStats) * bossCfg.timeoutSeconds >= bossHPCheck) {
                         // Логируем только первое успешное прохождение босса, чтобы не засорять лог после престижа
                         if (!loggedBosses[locLvl]) {
@@ -776,19 +851,21 @@
                             const entryDpsColor = isStrongEnough ? "#00FF6A" : "#FF3333";
                             const format = (v) => v > 1000000 ? (v / 1000000).toFixed(2) + 'M' : (v > 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(1));
 
-                            bossLogs.push(`
-                                <div style="padding-bottom: 8px; margin-bottom: 8px;">
-                                    <span style="color: #FFE400; font-weight: bold;">[БОСС #${bossCounter}]</span> 
-                                    <span style="color: #888;">Локация:</span> <span style="color: #fff;">${locLvl}</span> | 
-                                    <span style="color: #888;">Попытки:</span> <span style="color: #fff;">${attemptsPerBoss[locLvl] + 1}</span> | 
-                                    <span style="color: #888;">Престиж (всего):</span> <span style="color: #fff;">${totalPrestiges}</span><br>
-                                    <span style="color: #888;">ДПС входа:</span> <span style="color: ${entryDpsColor};">${format(initialDps)}</span> | 
-                                    <span style="color: #888;">Требуемый:</span> <span style="color: #FF8C00;">${format(reqDpsVal)}</span> | 
-                                    <span style="color: #888;">ДПС убийства:</span> <span style="color: #24dbe9;">${format(killDps)}</span>
-                                </div>
-                            `);
+                            if (locLvl >= minLogLvl) {
+                                bossLogs.push(`
+                                    <div style="padding-bottom: 8px; margin-bottom: 8px;">
+                                        <span style="color: #FFE400; font-weight: bold;">[БОСС #${bossCounter}]</span> 
+                                        <span style="color: #888;">Локация:</span> <span style="color: #fff;">${locLvl}</span> | 
+                                        <span style="color: #888;">Попытки:</span> <span style="color: #fff;">${attemptsPerBoss[locLvl] + 1}</span> | 
+                                        <span style="color: #888;">Престиж (всего):</span> <span style="color: #fff;">${totalPrestiges}</span><br>
+                                        <span style="color: #888;">ДПС входа:</span> <span style="color: ${entryDpsColor};">${format(initialDps)}</span> | 
+                                        <span style="color: #888;">Требуемый:</span> <span style="color: #FF8C00;">${format(reqDpsVal)}</span> | 
+                                        <span style="color: #888;">ДПС убийства:</span> <span style="color: #24dbe9;">${format(killDps)}</span>
+                                    </div>
+                                `);
 
-                            logs.push(`<div style="color: #d725daff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #d725daff;">Игрок прошел босса</b> Попыток: ${attemptsPerBoss[locLvl] + 1}</div>`);
+                                logs.push(`<div style="color: #d725daff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loc ${locLvl} [P-Lvl ${playerLvl}]: <b style="color: #d725daff;">Игрок прошел босса</b> Попыток: ${attemptsPerBoss[locLvl] + 1}</div>`);
+                            }
                         }
                     }
                 }
@@ -814,6 +891,10 @@
                         }
                     }
 
+                    if (enemy.gearDrop && (!enemy.minLevel || locLvl >= enemy.minLevel)) {
+                        currentGears += enemy.gearDrop;
+                    }
+
                     while (currentXP >= xpForLevel(playerLvl)) {
                         currentXP -= xpForLevel(playerLvl);
                         playerLvl++;
@@ -821,6 +902,7 @@
                         runSpending(locLvl);
                     }
                     tryBuySkills(locLvl);
+                    tryBuyTurrets(locLvl);
                 });
 
                 function runSpending(dispLvl) {
@@ -922,7 +1004,7 @@
                                 if (targetNode.type === 'areaDamagePlus') playerStats.areaDamageMult += targetNode.valuePerLevel;
                                 if (targetNode.type === 'essenceBonus') playerStats.essenceMult += targetNode.valuePerLevel;
                                 let nextDps = getFullDPS(playerStats);
-                                if (withDeathAtBoss) {
+                                if (withDeathAtBoss && dispLvl >= minLogLvl) {
                                     let diff = nextDps > 0 ? ((nextDps - prevDps) / prevDps * 100).toFixed(1) : 0;
                                     let dpsFormat = nextDps > 1000000 ? (nextDps / 1000000).toFixed(2) + 'M' : (nextDps > 1000 ? (nextDps / 1000).toFixed(1) + 'K' : nextDps.toFixed(1));
                                     logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="color: #888;">Loc ${dispLvl} [P-Lvl ${playerLvl}]:</span> <b>${targetNode.label}</b>, ДПС <span style="color: #24dbe9;">${dpsFormat}</span>, <span style="color: #00cc1f;">+${diff}% ДПС</span></div>`);
@@ -937,6 +1019,7 @@
                 let finalDps = getFullDPS(playerStats, true);
                 if (locLvl > maxLevelReached) {
                     dpsCurve[locLvl - 1] = finalDps;
+                    turretDpsCurve[locLvl - 1] = getTurretDPS(maxLevelReached);
                     initialPrestigesAtLevel[locLvl - 1] = totalPrestiges;
                     initialPlayerLvlCurve[locLvl - 1] = playerLvl;
                     maxLevelReached = locLvl;
@@ -953,13 +1036,20 @@
                 locLvl++;
             }
             let summary = buildSummary();
-            return { dpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, xpReqCurve, xpGainCurve, playerLvlCurve, initialPlayerLvlCurve, logs, bossLogs, summary };
+            return { dpsCurve, turretDpsCurve, prestigeDpsCurve, prestigesAtLevel, initialPrestigesAtLevel, xpReqCurve, xpGainCurve, playerLvlCurve, initialPlayerLvlCurve, logs, bossLogs, summary };
         }
 
         function updateChart() {
-            saveSettings();
+            let minLevel = parseInt(document.getElementById('minLevel').value) || 1;
+            let maxLevel = parseInt(document.getElementById('maxLevel').value) || 100;
+            if (minLevel > maxLevel) {
+                const tmp = minLevel;
+                minLevel = maxLevel;
+                maxLevel = tmp;
+                document.getElementById('minLevel').value = minLevel;
+                document.getElementById('maxLevel').value = maxLevel;
+            }
 
-            const maxLevel = parseInt(document.getElementById('maxLevel').value) || 100;
             const scaleType = document.getElementById('scaleType').value;
             const behavior = document.getElementById('playerBehavior').value;
             // Навыки теперь всегда начинаются с 0, так как панели удалены
@@ -970,15 +1060,24 @@
             // Навыки дальше покупаются самим симулятором автоматически на основе выбранной стратегии
 
 
-            // Запускаем две симуляции
-            const resultsIdeal = simulatePlayerDPS(maxLevel, activeSkills, prestigeSkills, behavior, false);
-            const resultsReal = simulatePlayerDPS(maxLevel, activeSkills, prestigeSkills, behavior, true);
+            // Запускаем две симуляции (симулируем всегда от 1 до maxLevel, чтобы ресурсы накопились достоверно)
+            const resultsIdeal = simulatePlayerDPS(minLevel, maxLevel, activeSkills, prestigeSkills, behavior, false);
+            const resultsReal = simulatePlayerDPS(minLevel, maxLevel, activeSkills, prestigeSkills, behavior, true);
+            
+            // Обрезка графиков под выбранный интервал
+            const sliceStart = Math.max(0, minLevel - 1);
+            const sliceEnd = maxLevel;
+
+            resultsIdeal.dpsCurve = resultsIdeal.dpsCurve.slice(sliceStart, sliceEnd);
+            resultsReal.dpsCurve = resultsReal.dpsCurve.slice(sliceStart, sliceEnd);
+            resultsReal.prestigeDpsCurve = resultsReal.prestigeDpsCurve.slice(sliceStart, sliceEnd);
+            resultsReal.turretDpsCurve = resultsReal.turretDpsCurve.slice(sliceStart, sliceEnd);
 
             const logEl = document.getElementById('simulationLog');
-            logEl.innerHTML = resultsReal.logs.length > 0 ? resultsReal.logs.join('<br>') : 'Апгрейдов не куплено...';
+            logEl.innerHTML = resultsReal.logs.length > 0 ? resultsReal.logs.join('<br>') : 'Апгрейдов не куплено (или скрыты фильтром)...';
 
             const bossLogEl = document.getElementById('bossLog');
-            bossLogEl.innerHTML = resultsReal.bossLogs.length > 0 ? resultsReal.bossLogs.join('') : 'Боссы не пройдены...';
+            bossLogEl.innerHTML = resultsReal.bossLogs.length > 0 ? resultsReal.bossLogs.join('') : 'Боссы не отслеживались (или скрыты фильтром)...';
 
             if (resultsReal.summary) {
                 let sum = resultsReal.summary;
@@ -1004,7 +1103,7 @@
             const types = CONFIG.enemies.types;
             const bossCfg = CONFIG.enemies.boss;
 
-            for (let lvl = 1; lvl <= maxLevel; lvl++) {
+            for (let lvl = minLevel; lvl <= maxLevel; lvl++) {
                 labels.push(lvl);
                 let sumHP = 0;
                 types.forEach(t => sumHP += window.Scaling.getEnemyHP(t, lvl));
@@ -1024,8 +1123,8 @@
             // Получаем сохраненную видимость перед созданием графика
             const saved = localStorage.getItem('simulatorSettings');
             const settings = saved ? JSON.parse(saved) : null;
-            const balanceHidden = (settings && settings.visibility) ? settings.visibility.balance : [];
-            const xpHidden = (settings && settings.visibility) ? settings.visibility.xp : [];
+            const balanceHidden = (settings && settings.visibility && settings.visibility.balance) ? settings.visibility.balance : null;
+            const xpHidden = (settings && settings.visibility && settings.visibility.xp) ? settings.visibility.xp : null;
 
             if (chartInstance) chartInstance.destroy();
             const defaultLegendClick = Chart.defaults.plugins.legend.onClick;
@@ -1041,9 +1140,18 @@
                             borderColor: '#00cc1f',
                             backgroundColor: 'rgba(0, 204, 31, 0.1)',
                             borderWidth: 2,
+                            hidden: balanceHidden ? balanceHidden.includes(0) : true // Исходно скрыт
+                        },
+                        {
+                            label: 'ДПС Только Турелей',
+                            data: resultsReal.turretDpsCurve,
+                            borderColor: '#00d2ff',
+                            backgroundColor: 'rgba(0, 210, 255, 0.1)',
+                            borderWidth: 2,
                             pointRadius: 0,
                             tension: 0.2,
-                            hidden: balanceHidden.includes(0) || true // Исходно скрыт, если не переопределено
+                            borderDash: [2, 2],
+                            hidden: balanceHidden ? balanceHidden.includes(1) : false
                         },
                         {
                             label: 'ДПС Первого прохождения',
@@ -1053,7 +1161,7 @@
                             borderWidth: 3,
                             pointRadius: 0,
                             tension: 0.2,
-                            hidden: balanceHidden.includes(1)
+                            hidden: balanceHidden ? balanceHidden.includes(2) : false
                         },
                         {
                             label: 'ДПС с Престижем (Фарм)',
@@ -1063,7 +1171,7 @@
                             borderWidth: 3,
                             pointRadius: 0,
                             tension: 0.2,
-                            hidden: balanceHidden.includes(2)
+                            hidden: balanceHidden ? balanceHidden.includes(3) : false
                         },
                         {
                             label: 'Нужен ДПС для Босса',
@@ -1074,7 +1182,7 @@
                             borderDash: [5, 5],
                             pointRadius: 3,
                             spanGaps: true,
-                            hidden: balanceHidden.includes(3)
+                            hidden: balanceHidden ? balanceHidden.includes(4) : false
                         },
                         {
                             label: 'HP Обычных врагов',
@@ -1083,7 +1191,7 @@
                             pointRadius: 0,
                             borderWidth: 1,
                             tension: 0.2,
-                            hidden: balanceHidden.includes(4) || true // Исходно скрыт
+                            hidden: balanceHidden ? balanceHidden.includes(5) : true // Исходно скрыт
                         }
                     ]
                 },
@@ -1144,17 +1252,18 @@
 
             // Создаем массив данных: X - Уровень игрока, Y - XP / Доход
             const playerLabels = [];
+            const minPlayerLvlLimit = resultsReal.initialPlayerLvlCurve[sliceStart] || 1;
             const maxPlayerLvlLimit = resultsReal.initialPlayerLvlCurve[resultsReal.initialPlayerLvlCurve.length - 1] || 100;
             const maxPoints = 1200;
-            const step = Math.max(1, Math.ceil(maxPlayerLvlLimit / maxPoints));
+            const step = Math.max(1, Math.ceil((maxPlayerLvlLimit - minPlayerLvlLimit) / maxPoints));
 
             const xpReqByPlayerLvl = [];
             const xpGainByPlayerLvl = [];
             const locationByPlayerLvl = [];
             const pLabels = [];
 
-            let locPointer = 0;
-            for (let pl = 1; pl <= maxPlayerLvlLimit; pl += step) {
+            let locPointer = sliceStart;
+            for (let pl = minPlayerLvlLimit; pl <= maxPlayerLvlLimit; pl += step) {
                 pLabels.push(`Ур. ${pl}`);
                 let req = xpForLevel(pl);
                 xpReqByPlayerLvl.push(isFinite(req) ? req : null);
@@ -1192,7 +1301,7 @@
                             borderWidth: 2,
                             pointRadius: 0,
                             tension: 0,
-                            hidden: xpHidden.includes(0)
+                            hidden: xpHidden ? xpHidden.includes(0) : false
                         },
                         {
                             label: 'Опыт за прохождение текущей локации',
@@ -1202,7 +1311,7 @@
                             borderWidth: 2,
                             pointRadius: 0,
                             tension: 0,
-                            hidden: xpHidden.includes(1)
+                            hidden: xpHidden ? xpHidden.includes(1) : false
                         }
                     ]
                 },
@@ -1264,6 +1373,7 @@
             setTimeout(updateChart, 200);
 
             // Навешиваем авто-сохранение на изменение полей
+            document.getElementById('minLevel').onchange = updateChart;
             document.getElementById('maxLevel').onchange = updateChart;
             document.getElementById('scaleType').onchange = updateChart;
             document.getElementById('playerBehavior').onchange = updateChart;

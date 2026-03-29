@@ -70,9 +70,16 @@ const VISUALS = {
             {
                 name: 'hexagon',
                 shape: 'hexagon',
-                color: '#ddff00ff',
-                glowColor: '#ddff00ff',
+                color: '#B026FF',
+                glowColor: '#B026FF',
                 size: 40,
+            },
+            {
+                name: 'gear',
+                shape: 'hexagon',
+                color: '#dc7900ff',
+                glowColor: '#dc7900ff',
+                size: 35,
             },
         ],
         boss: {
@@ -97,8 +104,8 @@ const VISUALS = {
     // ── Анимация ────────────────────────────────────────────
     animation: {
         teleportDurationMs: 300,
-        damageNumberLife: 0.8,
-        damageNumberRiseSpeed: 60,
+        damageNumberLife: 0.7,
+        damageNumberRiseSpeed: 45,
     },
 
     // ── Звук ────────────────────────────────────────────────

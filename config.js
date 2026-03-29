@@ -33,11 +33,13 @@ const CONFIG = {
     // ── Враги (Баланс) ──────────────────────────────────────
     enemies: {
         types: [
-            { name: 'circle', baseHP: 30, xpMultiplier: 120.0 },
-            { name: 'triangle', baseHP: 40, xpMultiplier: 120.0 },
-            { name: 'diamond', baseHP: 45, xpMultiplier: 160.0 },
-            { name: 'pentagon', baseHP: 160, xpMultiplier: 250.0, essenceDrop: 1 },
-            { name: 'hexagon', baseHP: 190, xpMultiplier: 300.0, essenceDrop: 1 },
+            { name: 'circle', baseHP: 30, xpMultiplier: 120.0, maxLevel: 45 },
+            { name: 'triangle', baseHP: 40, xpMultiplier: 120.0, maxLevel: 65 },
+            { name: 'diamond', baseHP: 45, xpMultiplier: 160.0, maxLevel: 100000 },
+            { name: 'pentagon', baseHP: 160, xpMultiplier: 250.0, essenceDrop: 1, minLevel: 4 },
+            { name: 'hexagon', baseHP: 190, xpMultiplier: 300.0, essenceDrop: 1, minLevel: 4 },
+            // Новый тип врага — дропает ⚙️ Детали для апгрейда турелей (с 45 уровня)
+            { name: 'gear', baseHP: 220, xpMultiplier: 200.0, essenceDrop: 1, gearDrop: 1, minLevel: 45 },
         ],
 
         hpExponentCycles: [
@@ -102,7 +104,7 @@ const CONFIG = {
             { typeIndex: 0, xFrac: 0.5, yFrac: 0.55 },
             { typeIndex: 0, xFrac: 0.7, yFrac: 0.55 },
         ],
-        playerSpawn: { xFrac: 0.5, yFrac: 0.8 },
+        playerSpawn: { xFrac: 0.5, yFrac: 0.9 },
         extraEnemiesPerLevel: 1,
         maxExtraEnemies: 20,
         spawnCycles: [
@@ -157,7 +159,7 @@ const CONFIG = {
                 { id: 'skillLightning', label: 'Lightning Strike', type: 'skillLightning', maxLevel: 50, valuePerLevel: 65, costPerLevel: 1, costMultiplier: 2.5, col: 0, row: 1, requires: null },
                 { id: 'skillHaste', label: 'Attack Speedup', type: 'skillHaste', maxLevel: 50, valuePerLevel: 0.6, costPerLevel: 2, costMultiplier: 2.5, col: 1, row: 1, requires: null },
                 { id: 'skillPower', label: 'Damage Increase', type: 'skillPower', maxLevel: 50, valuePerLevel: 0.15, costPerLevel: 2, costMultiplier: 2, col: 2, row: 1, requires: null },
-                { id: 'skillGrenade', label: 'Grenade', type: 'skillGrenade', maxLevel: 50, valuePerLevel: 100, costPerLevel: 5, costMultiplier: 2, col: 1, row: 2, requires: null },
+                { id: 'skillGrenade', label: 'Grenade', type: 'skillGrenade', maxLevel: 50, valuePerLevel: 100, costPerLevel: 5, costMultiplier: 2.5, col: 1, row: 2, requires: null },
                 { id: 'skillCDR', label: 'Skill CDR', type: 'skillCDR', maxLevel: 15, valuePerLevel: 0.03, costPerLevel: 3, costMultiplier: 2, col: 0, row: 2, requires: null },
             ]
         },
@@ -173,7 +175,7 @@ const CONFIG = {
                 { id: 'prestige_bonus', label: 'Prestige', description: 'Increases prestige points gained on reset', valuePerLevel: 1.0, unit: 'x', baseCost: 2, costExponent: 3.0, maxLevel: 100, },
             ]
         },
-        screen4: { label: 'Luck', nodes: [] },
+        screen4: { label: 'Turrets', nodes: [] },
         screen5: { label: 'Mastery', nodes: [] },
     },
 
@@ -207,6 +209,59 @@ const CONFIG = {
             rare: { points: 2, xEss: 15, kills: 225, color: '#1119faff', label: 'Редкая', icon: 'image/box2.png' },
             epic: { points: 3, xEss: 20, kills: 300, color: '#fb00ffff', label: 'Эпическая', icon: 'image/box3.png' },
             legendary: { points: 4, xEss: 40, kills: 450, color: '#ffb300ff', label: 'Легендарная', icon: 'image/box4.png' }
+        },
+    },
+
+    // ── Турели ──────────────────────────────────────────────────
+    turrets: {
+        // Базовые параметры каждой турели
+        baseDamage: 20000,          // урон ракеты
+        baseAttackSpeed: 0.35,    // атак в секунду
+        baseSplashRadius: 60,    // радиус splash-взрыва (в пикселях canvas)
+
+        // Уровни разблокировки слотов (максимально пройденная локация)
+        slotUnlockLevels: [50, 100, 200, 500],
+
+        // Позиции турелей на canvas (относительные координаты 0..1)
+        positions: [
+            { xFrac: 0.07, yFrac: 0.75 },  // левая крайняя (сдвинута левее)
+            { xFrac: 0.24, yFrac: 0.95 },  // левая внутренняя
+            { xFrac: 0.78, yFrac: 0.95 },  // правая внутренняя
+            { xFrac: 0.93, yFrac: 0.75 },  // правая крайняя (симметрия)
+        ],
+
+        // Апгрейды турелей (глобальные, на все турели)
+        upgrades: {
+            damage: {
+                label: '+ 10% damage',
+                valuePerLevel: 0.10,      // +10% к урону за уровень
+                baseCost: 5,              // стоимость первого уровня (Детали)
+                costMultiplier: 1.2,      // множитель цены за каждый уровень
+                maxLevel: 100,
+            },
+            attackSpeed: {
+                label: '+ 0.05 attack/sec',
+                valuePerLevel: 0.05,      // плоская прибавка выстрелов в секунду за уровень
+                baseCost: 6,
+                costMultiplier: 1.3,
+                maxLevel: 100,
+            },
+        },
+
+        // Параметры ракеты
+        rocket: {
+            speed: 200,            // скорость ракеты (px/sec)
+            arcHeight: 0.3,       // высота параболы (0..1 от расстояния)
+            size: 4,              // размер снаряда
+            color: '#FF8C00',     // цвет ракеты
+            trailColor: '#FF6600', // цвет следа
+        },
+
+        // Визуал взрыва
+        explosion: {
+            duration: 0.4,        // длительность эффекта (секунды)
+            color: '#FF8C00',     // основной цвет
+            coreColor: '#FFFFFF', // цвет ядра
         },
     },
 };
