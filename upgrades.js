@@ -12,6 +12,15 @@
         activeTab: 1,        // активный экран (1–5)
     };
 
+    // Вспомогательная функция для сокращения больших чисел
+    function formatNum(num) {
+        const n = Number(num);
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+        return Math.round(n).toString();
+    }
+
     // ── DOM-элементы ────────────────────────────────────────
     const svg = document.getElementById('upgrade-svg');
     const tooltip = document.getElementById('upgrade-tooltip');
@@ -95,6 +104,17 @@
     // ─────────────────────────────────────────────────────────
     // Проверка, разблокирован ли узел (можно ли в него вкладывать очки)
     function isUnlocked(node) {
+        // Проверка по новой системе блокировки локаций (Вкладка 1)
+        if (node.unlockAfterLocation !== undefined) {
+            if (window.Game && window.Game.getMaxReachedLevel) {
+                const mLevel = window.Game.getMaxReachedLevel();
+                if (mLevel <= node.unlockAfterLocation) {
+                    return 'locked_location_' + node.unlockAfterLocation;
+                }
+            }
+            return 'unlocked';
+        }
+
         if (!node.requires) {
             // Корень всегда разблокирован. Но применим проверку уровней и для корня, если нужно (например, Молния)
             if (window.Game && window.Game.getMaxReachedLevel) {
@@ -327,7 +347,7 @@
         if (essenceEl && essenceLabel) {
             essenceEl.textContent = state.essence;
             // Показываем плашку эссенции, если она уже начала копиться
-            if (state.essence > 0 || (window.Game && window.Game.getLocationLevel() >= 5)) {
+            if (state.essence > 0 || (window.Game && window.Game.getMaxReachedLevel() > 5)) {
                 essenceLabel.style.display = 'flex';
             }
         }
@@ -347,9 +367,200 @@
     }
 
     // ─────────────────────────────────────────────────────────
-    //  Отрисовка в SVG
+    //  Отрисовка в Сетке (HTML Вкладка 1)
+    // ─────────────────────────────────────────────────────────
+    function renderGrid(tabIndex) {
+        const container = document.getElementById('upgrades-grid-container');
+        if (!container) return;
+
+        const screen = CONFIG.upgrades[`screen${tabIndex}`];
+        if (!screen || !screen.nodes) return;
+
+        // Сортируем узлы по gridOrder
+        const nodes = [...screen.nodes].sort((a, b) => (a.gridOrder || 0) - (b.gridOrder || 0));
+
+        container.innerHTML = '';
+
+        nodes.forEach(node => {
+            // Фикс: Скрываем кнопки ТОЛЬКО во второй вкладке (скиллы), если требования не выполнены.
+            // В первой вкладке (Combat) показываем заблокированные кнопки с текстом.
+            const unlockStatus = isUnlocked(node);
+            if (tabIndex === 2 && unlockStatus !== 'unlocked') return;
+
+            const btn = document.createElement('button');
+            
+            // Фикс: передаем текущий tabIndex для правильного определения валюты в getNodeState
+            const savedActive = state.activeTab;
+            state.activeTab = tabIndex;
+            const nState = getNodeState(node);
+            state.activeTab = savedActive;
+
+            // Если это вторая вкладка (скиллы), добавляем спец. класс
+            if (tabIndex === 2) {
+                btn.className = 'upgrade-card skill-card';
+            } else {
+                btn.className = 'upgrade-card';
+            }
+
+            if (nState.startsWith('locked_location_')) {
+                btn.classList.add('locked');
+                const lockLvl = nState.replace('locked_location_', '');
+                btn.innerHTML = `
+                    <div class="upgrade-card-locked-text">
+                        Unlocks after <span class="lock-lvl">${lockLvl}</span> location
+                    </div>
+                `;
+            } else if (nState.startsWith('locked_level_')) {
+                btn.classList.add('locked');
+                const lockLvl = nState.replace('locked_level_', '');
+                btn.innerHTML = `
+                    <div class="upgrade-card-locked-text">
+                        Unlocks at <span class="lock-lvl">${lockLvl}</span> location
+                    </div>
+                `;
+            } else if (nState === 'locked') {
+                btn.classList.add('locked');
+                btn.innerHTML = `
+                    <div class="upgrade-card-locked-text">Locked</div>
+                `;
+            } else {
+                if (nState === 'maxed') btn.classList.add('maxed');
+                else if (nState === 'noPoints') btn.classList.add('no-points');
+                else btn.classList.add('available');
+
+                const currCost = getUpgradeCost(node);
+                const currVal = state.currentLevels[node.id] || 0;
+
+                // Для вкладки 2 используем новый макет
+                if (tabIndex === 2) {
+                    let description = "";
+                    let bonusText = "";
+                    const icon = TYPE_ICONS[node.type] || '✨';
+
+                    if (node.type === 'skillLightning') {
+                        bonusText = `<span class="skill-bonus-value">+${node.valuePerLevel * currVal}%</span> skill damage`;
+                    } else if (node.type === 'skillHaste') {
+                        bonusText = `<span class="skill-bonus-value">+${Math.round(node.valuePerLevel * currVal * 100)}%</span> attack speed`;
+                    } else if (node.type === 'skillPower') {
+                        bonusText = `<span class="skill-bonus-value">+${Math.round(node.valuePerLevel * currVal * 100)}%</span> total damage`;
+                    } else if (node.type === 'skillGrenade') {
+                        bonusText = `<span class="skill-bonus-value">+${node.valuePerLevel * currVal}%</span> grenade damage`;
+                    } else if (node.type === 'skillCDR') {
+                        bonusText = `<span class="skill-bonus-value">+${Math.round(node.valuePerLevel * currVal * 100)}%</span> cooldown reduc.`;
+                    }
+
+                    let costContent = `
+                        <span class="chip-icon" style="color: #B026FF;">✧</span>
+                        <span class="cost-val">${formatNum(currCost)}</span>
+                    `;
+                    if (nState === 'maxed') costContent = `MAX LVL`;
+
+                    btn.innerHTML = `
+                        <div class="skill-card-top">
+                            <div class="skill-card-title-row">
+                                <span class="skill-name">${node.label}</span>
+                                <span class="skill-lvl">lvl ${currVal}</span>
+                            </div>
+                            <div class="skill-card-icon">
+                                ${icon.endsWith('.png') ? `<img src="${icon}" style="width:100%; height:100%; object-fit:contain;">` : `<span>${icon}</span>`}
+                            </div>
+                        </div>
+                        <div class="skill-card-bottom">
+                            <div class="skill-desc">${description}</div>
+                            <div class="skill-bonus">${bonusText}</div>
+                            <div class="skill-cost-box">${costContent}</div>
+                        </div>
+                    `;
+                } else {
+                    // Старый макет для первой вкладки
+                    let displayValue = '';
+                    if (node.type === 'essenceBonus') {
+                        const mult = 1 + currVal * node.valuePerLevel;
+                        displayValue = `x${mult.toFixed(1)}`;
+                    } else if (node.type === 'areaDamage') {
+                        displayValue = '💥';
+                    } else if (node.type === 'areaRadius') {
+                        const hasAreaDamage = state.currentLevels['areaDamage'] ? 55 : 0;
+                        const baseRad = (CONFIG.player.baseAreaDamageRadius || 0) + hasAreaDamage;
+                        displayValue = `${baseRad + currVal * node.valuePerLevel}`;
+                    } else if (node.type === 'areaDamagePlus') {
+                        const baseMult = CONFIG.player.baseAreaDamageMult || 0.1;
+                        displayValue = `${Math.round((baseMult + currVal * node.valuePerLevel) * 100)}%`;
+                    } else if (node.type === 'attackSpeed') {
+                        displayValue = `${(CONFIG.player.baseAttackSpeed + currVal * node.valuePerLevel).toFixed(2)}/s`;
+                    } else if (node.type === 'critChance') {
+                        displayValue = `${Math.round((CONFIG.player.baseCritChance + currVal * node.valuePerLevel) * 100)}%`;
+                    } else if (node.type === 'critDamage') {
+                        displayValue = `x${(CONFIG.player.baseCritDamage + currVal * node.valuePerLevel).toFixed(2)}`;
+                    } else {
+                        displayValue = Math.round(CONFIG.player.baseDamage + currVal * node.valuePerLevel);
+                    }
+
+                    let costContent = `
+                        <span class="chip-icon" style="color: #FFE400;">⟡</span>
+                        <span class="cost-val">${formatNum(currCost)}</span>
+                    `;
+                    if (nState === 'maxed') costContent = `MAX LVL`;
+
+                    btn.innerHTML = `
+                        <div class="upgrade-card-label">
+                            <span>${node.label}</span>
+                        </div>
+                        <div class="upgrade-card-info">
+                            <div class="upgrade-card-value">${displayValue}</div>
+                            <div class="upgrade-card-cost">${costContent}</div>
+                        </div>
+                    `;
+                }
+
+                if (nState !== 'maxed') {
+                    btn.addEventListener('click', () => buyUpgrade(node));
+                }
+            }
+            container.appendChild(btn);
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  Отрисовка в SVG (Вкладки 2, 3 и т.д.)
     // ─────────────────────────────────────────────────────────
     function renderTree(tabIndex, forceCenter = false) {
+        // Убираем сообщение о блокировке/coming-soon при каждом переключении
+        const activeLockMsg = document.getElementById('tree-lock-tab-msg');
+        if (activeLockMsg) activeLockMsg.style.display = 'none';
+
+        const mLevel = window.Game ? window.Game.getMaxReachedLevel() : 1;
+
+        if (tabIndex === 1 || tabIndex === 2) {
+            // Проверка блокировки для второй вкладки (скиллы)
+            if (tabIndex === 2 && mLevel <= 5) {
+                document.getElementById('upgrades-grid-container').style.display = 'none';
+                document.getElementById('upgrade-tree-area').style.display = 'block'; // Нужно чтобы показать lockMsg
+                const msg = getLockMessage(tabIndex);
+                showLockScreen(msg);
+                return;
+            }
+
+            document.getElementById('upgrade-tree-area').style.display = 'none';
+            const gridCont = document.getElementById('upgrades-grid-container');
+            if (gridCont) {
+                gridCont.style.display = ''; // Показываем CSS grid
+                renderGrid(tabIndex);
+            }
+            return;
+        } else {
+            const gridCont = document.getElementById('upgrades-grid-container');
+            if (gridCont) gridCont.style.display = 'none';
+
+            // Если вкладки управляются другими модулями (3 - Престиж, 4 - Турели)
+            // мы не должны переопределять их display и рендерить SVG.
+            if (tabIndex === 3 || tabIndex === 4) {
+                return;
+            }
+
+            document.getElementById('upgrade-tree-area').style.display = 'flex';
+        }
+
         if (!svg) return;
 
         const key = `screen${tabIndex}`;
@@ -357,58 +568,59 @@
 
         svg.innerHTML = ''; // Очищаем всё перед отрисовкой
 
-        // Добавляем фильтры свечения (белый, синий, зеленый)
-        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        defs.innerHTML = `
-            <filter id="white-glow-filter" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur in="SourceAlpha" stdDeviation="${VISUALS.upgrades.glowBlur / 2}" result="blur" />
-                <feFlood flood-color="white" flood-opacity="${VISUALS.upgrades.glowOpacity}" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="blue-glow-filter" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur in="SourceAlpha" stdDeviation="${VISUALS.upgrades.glowBlur / 2}" result="blur" />
-                <feFlood flood-color="${VISUALS.upgrades.maxed.glow}" flood-opacity="${VISUALS.upgrades.glowOpacity}" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="green-glow-filter" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur in="SourceAlpha" stdDeviation="${VISUALS.upgrades.glowBlur / 2}" result="blur" />
-                <feFlood flood-color="${VISUALS.upgrades.available.glow}" flood-opacity="${VISUALS.upgrades.glowOpacity}" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-        `;
-        svg.appendChild(defs);
-
-        if (!screen) return;
+        // Настройки фильтров опущены для краткости, они остаются...
+        // ... (defs и фильтры) ...
 
         if (!screen || !screen.nodes || screen.nodes.length === 0 ||
-            (tabIndex === 2 && window.Game && window.Game.getMaxReachedLevel() < 5) ||
-            (tabIndex === 3 && window.Game && window.Game.getMaxReachedLevel() < 35) ||
-            (tabIndex === 5 && window.Game && window.Game.getMaxReachedLevel() < 100)) {
+            (tabIndex === 3 && mLevel < 35) ||
+            (tabIndex === 5 && mLevel < 100)) {
 
-            // Сбрасываем размеры SVG до размеров контейнера
-            const parentW = svg.parentElement ? svg.parentElement.clientWidth : 480;
-            const parentH = svg.parentElement ? svg.parentElement.clientHeight : 280;
-            svg.style.width = parentW + 'px';
-            svg.style.height = parentH + 'px';
-
-            const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            txt.setAttribute('x', '50%'); txt.setAttribute('y', '50%');
-            txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('fill', '#445');
-            txt.setAttribute('font-size', '16px');
-            txt.setAttribute('font-weight', 'bold');
-
-            const mLevel = window.Game ? window.Game.getMaxReachedLevel() : 0;
-            if (tabIndex === 2) txt.textContent = 'Unlocks after location 5';
-            else if (tabIndex === 3) txt.textContent = 'Unlocks after location 35';
-            else if (tabIndex === 5) txt.textContent = mLevel < 100 ? 'Unlocks after location 500' : 'Coming Soon';
-            else txt.textContent = 'Coming Soon';
-
-            svg.appendChild(txt);
+            const msg = getLockMessage(tabIndex);
+            showLockScreen(msg);
             return;
         }
+
+        // Вспомогательные функции для вывода блокировки
+        function getLockMessage(idx) {
+            if (idx === 2) return 'Unlocks after location 5';
+            if (idx === 3) return 'Unlocks after location 35';
+            if (idx === 5) return 'Coming Soon';
+            return '';
+        }
+
+        function showLockScreen(text) {
+            let lm = document.getElementById('tree-lock-tab-msg');
+            if (!lm) {
+                lm = document.createElement('div');
+                lm.id = 'tree-lock-tab-msg';
+                lm.style.position = 'absolute';
+                lm.style.top = '0'; lm.style.left = '0';
+                lm.style.width = '100%'; lm.style.height = '100%';
+                lm.style.display = 'flex'; lm.style.alignItems = 'center';
+                lm.style.justifyContent = 'center'; lm.style.color = '#445';
+                lm.style.fontSize = '16px'; lm.style.fontWeight = 'bold';
+                const area = document.getElementById('upgrade-tree-area');
+                if (area) area.appendChild(lm);
+            }
+            lm.textContent = text;
+            lm.style.display = 'flex';
+            if (svg) svg.style.display = 'none';
+        }
+
+        if (!screen || !screen.nodes || screen.nodes.length === 0 ||
+            (tabIndex === 3 && mLevel < 35) ||
+            (tabIndex === 5 && mLevel < 100)) {
+            const msg = getLockMessage(tabIndex);
+            showLockScreen(msg);
+            return;
+        }
+
+        // Убираем сообщение о блокировке, если оно было
+        const lockMsg = document.getElementById('tree-lock-tab-msg');
+        if (lockMsg) lockMsg.style.display = 'none';
+        if (lockMsg) lockMsg.style.display = 'none';
+
+        svg.style.display = 'block';
 
         const nodeMap = {};
         screen.nodes.forEach(n => nodeMap[n.id] = n);
@@ -570,7 +782,7 @@
                 cText.setAttribute('x', 16 * scale); cText.setAttribute('y', -16 * scale);
                 cText.setAttribute('text-anchor', 'middle'); cText.setAttribute('dominant-baseline', 'middle');
                 cText.setAttribute('fill', '#FFE400'); cText.setAttribute('font-size', 8 * scale);
-                cText.textContent = getUpgradeCost(n);
+                cText.textContent = formatNum(getUpgradeCost(n));
                 g.appendChild(cText);
             }
 

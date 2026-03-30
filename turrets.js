@@ -48,7 +48,7 @@
         const levels = CONFIG.turrets.slotUnlockLevels;
         let count = 0;
         for (let i = 0; i < levels.length; i++) {
-            if (maxLevel >= levels[i]) count++;
+            if (maxLevel > levels[i]) count++;
         }
         return count;
     }
@@ -90,8 +90,8 @@
         const mLevel = window.Game ? window.Game.getMaxReachedLevel() : 0;
         const lockedLevel = CONFIG.turrets.slotUnlockLevels[0]; // 50
         
-        // Если турели еще не открыты, показываем только текст
-        if (mLevel < lockedLevel) {
+        // Если турели еще не открыты, показываем только текст (строго после прохождения 50)
+        if (mLevel <= lockedLevel) {
             if (turretSlots) turretSlots.style.display = 'none';
             if (turretUpgrades) turretUpgrades.style.display = 'none';
             
@@ -137,7 +137,7 @@
                 const c = TURRET_COLORS[i % TURRET_COLORS.length];
                 // Показываем SVG турели, аналогичный рендеру в игре
                 slot.innerHTML = `
-                    <svg width="40" height="40" viewBox="-16 -16 54 32" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-45deg); overflow:visible;">
+                    <svg width="60%" height="60%" viewBox="-16 -16 54 32" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-45deg); overflow:visible;">
                         <polygon points="-12.5,0 0,-12.5 12.5,0 0,12.5" fill="rgba(0,0,0,0.7)" stroke="${c.base}" stroke-width="2" style="filter: drop-shadow(0px 0px 4px ${c.base});" />
                         <polygon points="0,0 16,-6 32,0 16,6" fill="rgba(0,0,0,0.7)" stroke="${c.barrel}" stroke-width="2" style="filter: drop-shadow(0px 0px 4px ${c.barrel});" />
                     </svg>
@@ -148,7 +148,7 @@
         });
 
         // Обновляем кнопки апгрейдов
-        const upgBtns = turretTabContent.querySelectorAll('.turret-upgrade-btn');
+        const upgBtns = turretTabContent.querySelectorAll('.turret-upgrade-card');
         upgBtns.forEach(btn => {
             const key = btn.dataset.upgrade;
             const upg = CONFIG.turrets.upgrades[key];
@@ -158,21 +158,29 @@
             const canAfford = turretState.gears >= cost;
 
             btn.classList.toggle('maxed', isMaxed);
-            btn.classList.toggle('no-currency', !isMaxed && !canAfford);
+            btn.classList.toggle('no-points', !isMaxed && !canAfford);
 
             // Обновляем текст стоимости
-            const costEl = btn.querySelector('.turret-upgrade-cost span:last-child');
+            const costEl = btn.querySelector('.cost-val');
             if (costEl) {
-                costEl.textContent = isMaxed ? 'MAX' : cost;
+                const formattedCost = (window.Game && window.Game.formatNumber) ? window.Game.formatNumber(cost) : cost.toLocaleString();
+                costEl.textContent = isMaxed ? 'MAX LVL' : formattedCost;
             }
 
             // Обновляем текст эффекта
-            const labelEl = btn.querySelector('.turret-upgrade-label');
+            const labelEl = btn.querySelector('.upgrade-card-label span');
             if (labelEl) {
-                if (isMaxed) {
-                    labelEl.textContent = `${upg.label} (MAX)`;
+                const baseName = key === 'damage' ? 'Turret Damage' : 'Turret Attack Speed';
+                labelEl.textContent = baseName;
+            }
+
+            // Обновляем значение 
+            const valEl = btn.querySelector('.upgrade-card-value');
+            if (valEl) {
+                if (key === 'damage') {
+                    valEl.textContent = `+ ${(level * upg.valuePerLevel * 100).toFixed(0)}%`;
                 } else {
-                    labelEl.textContent = `${upg.label} [${level}/${upg.maxLevel}]`;
+                    valEl.textContent = `+ ${(level * upg.valuePerLevel).toFixed(2)}/s`;
                 }
             }
         });
@@ -252,7 +260,7 @@
     // ── Обработчики кнопок апгрейдов ────────────────────────
     function setupUpgradeButtons() {
         if (!turretTabContent) return;
-        const upgBtns = turretTabContent.querySelectorAll('.turret-upgrade-btn');
+        const upgBtns = turretTabContent.querySelectorAll('.turret-upgrade-card');
         upgBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 buyTurretUpgrade(btn.dataset.upgrade);

@@ -117,11 +117,16 @@
     // ── Рендер счётчика очков ─────────────────────────────────
     function renderPrestigePointsDisplay() {
         const el = document.getElementById('prestige-points-value');
-        if (el) el.textContent = state.prestigePoints;
+        if (el) el.textContent = formatNum(state.prestigePoints);
 
-        // Обновляем превью награды и кнопку
         const rewardEl = document.getElementById('prestige-reward-preview');
-        if (rewardEl) rewardEl.textContent = `+ ${calcPrestigeReward()} prestige points`;
+        if (rewardEl) rewardEl.textContent = `+${formatNum(calcPrestigeReward())}`;
+    }
+
+    function formatNum(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+        return num.toLocaleString();
     }
 
     // ── Рендер карточек навыков ───────────────────────────────
@@ -130,8 +135,9 @@
         if (!grid) return;
 
         const locLvl = (window.Game && window.Game.getLocationLevel) ? window.Game.getLocationLevel() : 1;
+        const mLevel = (window.Game && window.Game.getMaxReachedLevel) ? window.Game.getMaxReachedLevel() : 1;
         const pUnlockLvl = (CONFIG.upgrades && CONFIG.upgrades.screen3 && CONFIG.upgrades.screen3.unlockLevel) ? CONFIG.upgrades.screen3.unlockLevel : 35;
-        const unlocked = locLvl > pUnlockLvl || state.prestigePoints > 0 || Object.values(state.skillLevels).some(lvl => lvl > 0);
+        const unlocked = mLevel >= pUnlockLvl || state.prestigePoints > 0 || Object.values(state.skillLevels).some(lvl => lvl > 0);
 
         // Скрываем/показываем шапку и нижнюю панель
         const header = document.getElementById('prestige-header');
@@ -161,105 +167,105 @@
             const lvl = state.skillLevels[skill.id] || 0;
             const cost = getSkillCost(skill);
             const isMax = lvl >= skill.maxLevel;
-
-            // Состояние (неактивно, если не доступно и не куплено)
             const isInactive = (st !== 'available' && st !== 'maxed');
 
-            // Получаем настройки стиля из общего конфига (config.js)
-            const nodeStyle = VISUALS.upgrades[st] || VISUALS.upgrades.locked;
-            const bgColor = nodeStyle.bg;
-            const frameColor = nodeStyle.border;
-            // glow — всегда HEX, используем для box-shadow (border может быть rgba)
-            const glowColor = nodeStyle.glow !== 'none' ? nodeStyle.glow : 'rgba(255,255,255,0.3)';
-
-            const finalBorder = isInactive
-                ? `1px solid ${frameColor}`
-                : `${VISUALS.upgrades.thicknessCSS}px solid ${frameColor}`;
-
-            const glowOpacityHex = Math.round(VISUALS.upgrades.glowOpacity * 255).toString(16).padStart(2, '0');
-            const finalShadow = isInactive
-                ? 'none'
-                : `0 0 ${VISUALS.upgrades.glowBlur * 1.5}px ${glowColor}${glowOpacityHex}, inset 0 0 2px ${glowColor}44`;
-
-            const textColor = st === 'maxed' ? '#00F0FF'
-                : st === 'available' ? '#00FF6A'
-                    : '#d3d3d3ff'; // Белый цвет вместо серого для уровней
-
             const card = document.createElement('div');
-            card.className = 'prestige-skill-card';
+            card.className = `prestige-node ${st === 'maxed' ? 'maxed' : ''} ${isInactive ? 'no-points' : ''}`;
+
+            // Базовый стиль карточки (аналог макета)
             card.style.cssText = `
-                border: ${finalBorder};
-                background: ${bgColor};
-                box-shadow: ${finalShadow};
-                border-radius: 6px;
-                padding: 8px 6px;
+                flex: 1;
+                min-width: 0;
+                height: 12vh; /* Управляем высотой напрямую через % от экрана */
+                max-height: 110px; /* Ограничение сверху для больших экранов */
+                background: #004578;
+                border: clamp(1px, 0.3vh, 2px) solid #fff;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                gap: 4px;
+                justify-content: space-between;
+                padding: clamp(2px, 1.5cqi, 8px) 0 0 0;
                 cursor: ${st === 'available' ? 'pointer' : 'default'};
-                flex: 1;
-                min-width: 0;
-                transition: all 0.2s;
                 position: relative;
+                overflow: hidden;
+                transition: all 0.2s;
+                container-type: inline-size; /* Включаем контейнерные единицы для текста */
+                box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
             `;
 
-            // Иконка
-            if (skill.icon.endsWith('.png')) {
-                const iconImg = document.createElement('img');
-                iconImg.src = skill.icon;
-                iconImg.style.cssText = `width: 20px; height: 20px; object-fit: contain;`;
-                card.appendChild(iconImg);
+            // Расчет текущего бонуса
+            let bonusVal;
+            if (skill.id === 'prestige_damage' || skill.id === 'prestige_crit_chance') {
+                bonusVal = `+${(lvl * skill.valuePerLevel * 100).toFixed(0)}%`;
+            } else if (skill.id === 'prestige_crit_dmg') {
+                const addCritMult = lvl * skill.valuePerLevel;
+                bonusVal = `+x${addCritMult.toFixed(2)}`;
+            } else if (skill.id === 'prestige_essence' || skill.id === 'prestige_bonus') {
+                const mult = skill.id === 'prestige_essence' ? Math.pow(1 + skill.valuePerLevel, lvl) : (1 + lvl * skill.valuePerLevel);
+                const percentBonus = (mult - 1) * 100;
+                bonusVal = `+${percentBonus.toFixed(0)}%`;
             } else {
-                const icon = document.createElement('div');
-                icon.style.cssText = `font-size: 20px; line-height: 1; color: ${skill.color || 'white'};`; 
-                icon.textContent = skill.icon;
-                card.appendChild(icon);
+                bonusVal = `+${(lvl * skill.valuePerLevel).toFixed(1)}${skill.unit || ''}`;
             }
 
-            // Название
-            const name = document.createElement('div');
-            name.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 7px; font-weight: 700; color: ${skill.color}; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;`;
-            name.textContent = skill.label;
-            card.appendChild(name);
+            const iconColor = skill.id === 'prestige_essence' ? '#BF00FF' : '#fbff00';
 
-            // Цвет текста: MAX — цвет обводки из конфига, остальные уровни — из textColor
-            const levelTextColor = isMax ? VISUALS.upgrades.maxed.glow : textColor;
+            card.innerHTML = `
+                <!-- Иконка сверху -->
+                <div style="font-size: clamp(10px, 30cqi, 22px); color: ${iconColor}; margin: clamp(2px, 2cqi, 8px) 0 clamp(1px, 1cqi, 4px) 0; line-height: 1; display: flex; align-items: center; justify-content: center;">
+                    ${skill.icon.endsWith('.png') ? `<img src="${skill.icon}" style="width: 1em; height: 1em; display: block; object-fit: contain;">` : skill.icon}
+                </div>
+                
+                <!-- Центр: Название и Бонус -->
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-width: 0; padding: 0 clamp(1px, 1cqi, 4px); text-align: center; overflow: hidden;">
+                    <div style="color: #fff; font-family: 'Orbitron', sans-serif; font-weight: 800; text-transform: uppercase; 
+                         font-size: clamp(6px, 12cqi, 9px); line-height: 1.1; width: 100%; word-break: break-word; 
+                         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: clamp(1px, 1cqi, 4px);">
+                        ${skill.label}
+                    </div>
+                    <div style="color: #00FF6A; font-family: 'Orbitron', sans-serif; font-size: clamp(8px, 15cqi, 11px); font-weight: 900; line-height: 1;">
+                        ${bonusVal}
+                    </div>
+                </div>
 
-            // Уровень
-            const levelEl = document.createElement('div');
-            levelEl.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 900; color: ${levelTextColor};`;
-            levelEl.textContent = isMax ? 'MAX' : `${lvl}/${skill.maxLevel}`;
-            card.appendChild(levelEl);
+                <!-- Низ: Полоска цены ровно 24% высоты -->
+                <div style="width: 100%; height: 24%; flex-shrink: 0; background: #003393; border-top: clamp(1px, 0.3vh, 2px) solid #0099ff; 
+                     display: flex; align-items: center; justify-content: center; gap: clamp(1px, 1cqi, 4px); padding: 0 clamp(1px, 1cqi, 4px); box-sizing: border-box;">
+                    ${!isMax ? `
+                        <span style="color: #fff; font-size: clamp(8px, 12cqi, 11px); line-height: 1;">★</span>
+                        <span style="color: #fbff00; font-family: 'Orbitron', sans-serif; font-weight: 900; 
+                             font-size: clamp(7px, 18cqi, 12px); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ${formatNum(cost)}
+                        </span>
+                    ` : `
+                        <span style="color: #24dbe9; font-family: 'Orbitron', sans-serif; font-size: clamp(7px, 15cqi, 10px); font-weight: 900;">MAX</span>
+                    `}
+                </div>
+            `;
 
-            // Стоимость (если не max)
-            if (!isMax) {
-                const costEl = document.createElement('div');
-                costEl.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 7px; color: #FFE400; background: #1a1400; border: 1px solid #FFE40066; border-radius: 4px; padding: 2px 4px;`;
-                costEl.textContent = `★ ${cost}`;
-                card.appendChild(costEl);
+            if (isInactive) {
+                card.style.opacity = '0.5';
+                card.style.filter = 'grayscale(0.5)';
             }
 
-            // Кнопка покупки
             if (st === 'available') {
                 card.addEventListener('click', () => {
                     buySkill(skill);
-                    if (window.SoundManager) window.SoundManager.playClick();
                 });
                 card.addEventListener('mouseenter', () => {
-                    card.style.transform = 'scale(1.05)';
-                    card.style.boxShadow = `0 0 20px ${borderColor}88`;
+                    card.style.transform = 'translateY(-2px)';
+                    card.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.4)';
                 });
                 card.addEventListener('mouseleave', () => {
                     card.style.transform = '';
-                    card.style.boxShadow = `0 0 10px ${borderColor}44`;
+                    card.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.2)';
                 });
             }
 
-            // Тултипы
-            card.addEventListener('mouseenter', (e) => showPrestigeTooltip(e, skill, st));
-            card.addEventListener('mousemove', (e) => movePrestigeTooltip(e));
-            card.addEventListener('mouseleave', hidePrestigeTooltip);
+            // Тултипы (отключено)
+            // card.addEventListener('mouseenter', (e) => showPrestigeTooltip(e, skill, st));
+            // card.addEventListener('mousemove', (e) => movePrestigeTooltip(e));
+            // card.addEventListener('mouseleave', hidePrestigeTooltip);
 
             grid.appendChild(card);
         });
@@ -278,7 +284,8 @@
             bonusStr = `+${(bonus * 100).toFixed(0)}%`;
         } else if (skill.id === 'prestige_essence') {
             const mult = Math.pow(1 + skill.valuePerLevel, lvl);
-            bonusStr = `x${mult.toFixed(2)}`;
+            const percentBonus = (mult - 1) * 100;
+            bonusStr = `+${percentBonus.toFixed(0)}%`;
         } else {
             bonusStr = `+${bonus % 1 === 0 ? bonus : bonus.toFixed(2)}${skill.unit}`;
         }
@@ -301,7 +308,8 @@
                 nextBonusStr = `+${(nextBonus * 100).toFixed(0)}%`;
             } else if (skill.id === 'prestige_essence') {
                 const mult = Math.pow(1 + skill.valuePerLevel, nextLvl);
-                nextBonusStr = `x${mult.toFixed(2)}`;
+                const percentBonus = (mult - 1) * 100;
+                nextBonusStr = `+${percentBonus.toFixed(0)}%`;
             } else {
                 nextBonusStr = `+${nextBonus % 1 === 0 ? nextBonus : nextBonus.toFixed(2)}${skill.unit}`;
             }
@@ -340,8 +348,8 @@
             display: none;
             flex-direction: column;
             align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
+            gap: clamp(4px, 1.5vh, 4px);
+            padding: clamp(6px, 2vh, 16px) clamp(8px, 2vw, 10px);
             height: 100%;
             box-sizing: border-box;
             overflow-y: auto;
@@ -352,126 +360,121 @@
         header.id = 'prestige-header';
         header.style.cssText = `
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            gap: 2px;
+            justify-content: center;
+            gap: 4px;
+            width: 100%;
+            padding: 2px 0 3px 0;
         `;
-        const headerLabel = document.createElement('div');
-        headerLabel.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #FFE400; opacity: 0.7;`;
-        headerLabel.textContent = 'Prestige Points';
         const headerValue = document.createElement('div');
-        headerValue.id = 'prestige-points-value';
-        headerValue.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 26px; font-weight: 900; color: #FFE400; text-shadow: 0 0 20px #FFE40088, 0 0 40px #FFE40044;`;
-        headerValue.textContent = '0';
-        header.appendChild(headerLabel);
+        headerValue.id = 'prestige-points-value-container';
+        headerValue.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: clamp(12px, 3.5vh, 18px); font-weight: 900; color: #FFE400; text-shadow: 0 0 10px #FFE40044; display: flex; align-items: center; gap: clamp(2px, 1vw, 4px);`;
+        headerValue.innerHTML = `<span style="font-size: 0.8em; margin-top: -1px; opacity: 0.9;">★</span> <span id="prestige-points-value">0</span>`;
+
         header.appendChild(headerValue);
         container.appendChild(header);
 
-        // ── Сетка навыков ──
+        // ── Сетка навыков (Row - 5 in a row) ──
         const grid = document.createElement('div');
         grid.id = 'prestige-skills-grid';
+        grid.className = 'upgrades-grid';
         grid.style.cssText = `
             display: flex;
             flex-direction: row;
-            gap: 6px;
+            gap: clamp(2px, 0.5vw, 6px);
             width: 100%;
-            align-items: stretch;
+            padding: clamp(2px, 0.5vh, 6px) 0;
+            justify-content: space-between;
         `;
         container.appendChild(grid);
 
-        // ── Нижняя строка: кнопка + превью ──
+        // ── Нижняя строка: кнопка + панель ──
         const bottomRow = document.createElement('div');
         bottomRow.id = 'prestige-bottom-row';
         bottomRow.style.cssText = `
             display: flex;
             flex-direction: row;
-            align-items: center;
-            gap: 12px;
+            align-items: stretch;
+            gap: clamp(4px, 1vw, 10px);
             width: 100%;
             margin-top: auto;
+            padding-top: clamp(2px, 1vh, 8px);
         `;
 
-        // Кнопка Престиж
+        // Кнопка Престиж (Макет)
         const btnPrestige = document.createElement('button');
         btnPrestige.id = 'btn-prestige';
         btnPrestige.style.cssText = `
             font-family: 'Orbitron', sans-serif;
-            font-size: 10px;
+            font-size: clamp(7px, 1.3vh, 10px);
             font-weight: 900;
-            letter-spacing: 2px;
             text-transform: uppercase;
-            padding: 12px 18px;
-            border: 2px solid #FFE400;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #1a1200, #2a2000);
-            color: #FFE400;
+            padding: 0 8px;
+            border: clamp(1px, 0.4vh, 2px) solid #fff;
+            border-radius: 8px;
+            background: #111;
+            color: #fff;
             cursor: pointer;
-            box-shadow: 0 0 15px #FFE40066;
             transition: all 0.2s;
-            white-space: nowrap;
-            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            min-height: clamp(28px, 5vh, 42px);
+            flex: 0 0 clamp(70px, 25%, 110px);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.2);
         `;
-        btnPrestige.textContent = '⭐ PRESTIGE';
+        btnPrestige.innerHTML = `<span style="font-size: clamp(8px, 1.8vh, 13px);">★</span> PRESTIGE`;
         btnPrestige.addEventListener('click', () => {
             const confirmOvl = document.getElementById('prestige-confirm-overlay');
             if (confirmOvl) {
                 confirmOvl.classList.add('visible');
-                
-                // Разовая привязка событий при открытии (или лучше вынести в initTab)
                 const btnConfirm = document.getElementById('btn-prestige-confirm');
                 const btnCancel = document.getElementById('btn-prestige-cancel');
                 const btnClose = document.getElementById('btn-close-prestige-modal');
-                
-                const closeConfirm = () => {
-                    confirmOvl.classList.remove('visible');
-                };
-                
-                // Очистка старых слушателей через замену узлов или просто проверку
-                // Для простоты в этом проекте часто делаем click напрямую
-                if (btnConfirm) btnConfirm.onclick = () => {
-                    closeConfirm();
-                    doPrestige();
-                };
+                const closeConfirm = () => confirmOvl.classList.remove('visible');
+                if (btnConfirm) btnConfirm.onclick = () => { closeConfirm(); doPrestige(); };
                 if (btnCancel) btnCancel.onclick = closeConfirm;
                 if (btnClose) btnClose.onclick = closeConfirm;
-                
-                // Закрытие по фону
-                confirmOvl.onclick = (e) => {
-                    if (e.target === confirmOvl) closeConfirm();
-                };
+                confirmOvl.onclick = (e) => { if (e.target === confirmOvl) closeConfirm(); };
             }
         });
         btnPrestige.addEventListener('mouseenter', () => {
-            btnPrestige.style.background = 'linear-gradient(135deg, #2a2000, #3a3000)';
-            btnPrestige.style.boxShadow = '0 0 30px #FFE400aa';
-            btnPrestige.style.transform = 'scale(1.05)';
+            btnPrestige.style.background = '#222';
+            btnPrestige.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.3)';
+            btnPrestige.style.transform = 'scale(1.03)';
         });
         btnPrestige.addEventListener('mouseleave', () => {
-            btnPrestige.style.background = 'linear-gradient(135deg, #1a1200, #2a2000)';
-            btnPrestige.style.boxShadow = '0 0 15px #FFE40066';
+            btnPrestige.style.background = '#111';
+            btnPrestige.style.boxShadow = '0 0 5px rgba(255, 255, 255, 0.15)';
             btnPrestige.style.transform = '';
         });
         bottomRow.appendChild(btnPrestige);
 
-        // Блок с описанием
+        // Блок с описанием (Макет)
         const infoBlock = document.createElement('div');
         infoBlock.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            border: 1px solid #FFE40033;
+            justify-content: center;
+            gap: 1px;
+            border: 1.5px solid #333;
             border-radius: 8px;
-            padding: 8px 12px;
-            background: #0d0c00;
+            padding: 4px 10px;
+            background: #000;
             flex: 1;
+            min-width: 0;
+            overflow: hidden;
         `;
         const infoLine1 = document.createElement('div');
-        infoLine1.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 1px;`;
+        infoLine1.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: clamp(5px, 0.8vh, 8px); color: #777; text-transform: uppercase; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
         infoLine1.textContent = 'Resets progress back by 50%';
         const infoLine2 = document.createElement('div');
-        infoLine2.id = 'prestige-reward-preview';
-        infoLine2.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 900; color: #FFE400; text-shadow: 0 0 10px #FFE40066;`;
-        infoLine2.textContent = '+ 0 prestige points';
+        infoLine2.id = 'prestige-reward-preview-container';
+        infoLine2.style.cssText = `font-family: 'Orbitron', sans-serif; font-size: clamp(8px, 1.5vh, 12px); font-weight: 900; color: #fff; display: flex; align-items: baseline; gap: 3px; overflow: hidden;`;
+        infoLine2.innerHTML = `<span id="prestige-reward-preview" style="color: #00FF6A;">+0</span> <span style="font-size: clamp(6px, 1vh, 9px); white-space: nowrap;">prestige points</span>`;
+
         infoBlock.appendChild(infoLine1);
         infoBlock.appendChild(infoLine2);
         bottomRow.appendChild(infoBlock);
@@ -529,6 +532,13 @@
         canAffordAny: () => PRESTIGE_SKILLS.some(skill => getSkillState(skill) === 'available'),
         // Управление видимостью вкладки
         showTab: showTab,
+        // Начислить очки престижа (для дебага)
+        addPrestigePoints: (amount) => {
+            state.prestigePoints += amount;
+            renderPrestigePointsDisplay();
+            render();
+            if (window.Game && window.Game.save) window.Game.save();
+        },
         // Сохранение и загрузка
         save: () => ({ ...state }),
         load: (data) => {

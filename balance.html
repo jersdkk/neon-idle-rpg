@@ -915,13 +915,8 @@
                             if (clvl >= node.maxLevel) return;
                             const cost = node.costPerLevel;
 
-                            let reqs = node.requires;
-                            if (reqs) {
-                                if (!Array.isArray(reqs)) reqs = [reqs];
-                                if (reqs.some(r => {
-                                    const rn = nodes.find(n => n.id === r);
-                                    return !rn || currentSkillLevels[r] < (rn.maxLevel || 1);
-                                })) return;
+                            if (node.unlockAfterLocation !== undefined) {
+                                if (dispLvl <= node.unlockAfterLocation) return;
                             }
                             let tempStats = { ...playerStats };
                             if (node.type === 'damage') tempStats.damage += node.valuePerLevel;
@@ -929,6 +924,7 @@
                             if (node.type === 'critChance') tempStats.critChance += node.valuePerLevel;
                             if (node.type === 'critDamage') tempStats.critDamage += node.valuePerLevel;
                             if (node.type === 'areaDamage') tempStats.areaDamageRadius += node.valuePerLevel;
+                            if (node.type === 'areaRadius') tempStats.areaDamageRadius += node.valuePerLevel;
                             if (node.type === 'areaDamagePlus') tempStats.areaDamageMult += node.valuePerLevel;
                             if (node.type === 'essenceBonus') tempStats.essenceMult += node.valuePerLevel;
 
@@ -1001,6 +997,7 @@
                                 if (targetNode.type === 'critChance') playerStats.critChance += targetNode.valuePerLevel;
                                 if (targetNode.type === 'critDamage') playerStats.critDamage += targetNode.valuePerLevel;
                                 if (targetNode.type === 'areaDamage') playerStats.areaDamageRadius += targetNode.valuePerLevel;
+                                if (targetNode.type === 'areaRadius') playerStats.areaDamageRadius += targetNode.valuePerLevel;
                                 if (targetNode.type === 'areaDamagePlus') playerStats.areaDamageMult += targetNode.valuePerLevel;
                                 if (targetNode.type === 'essenceBonus') playerStats.essenceMult += targetNode.valuePerLevel;
                                 let nextDps = getFullDPS(playerStats);

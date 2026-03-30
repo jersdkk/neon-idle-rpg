@@ -486,7 +486,7 @@
         }
 
         // Обычные враги — полностью случайный спавн
-        const availableTypes = CONFIG.enemies.types.filter(t => 
+        const availableTypes = CONFIG.enemies.types.filter(t =>
             (!t.minLevel || locLvl >= t.minLevel) && (!t.maxLevel || locLvl <= t.maxLevel)
         );
         const extraTypes = availableTypes.length > 0 ? availableTypes : [CONFIG.enemies.types[0]];
@@ -530,7 +530,7 @@
         // ── Глобальная релаксация для полной равномерности (50 итераций) ──
         const pSp = CONFIG.location.playerSpawn;
         // Безопасная зона игрока теперь масштабируется (10% от размера арены)
-        const playerSafeZoneRadius = arenaSize * 0.12; 
+        const playerSafeZoneRadius = arenaSize * 0.12;
         const playerDummy = { x: pSp.xFrac * arenaSize, y: pSp.yFrac * arenaSize, size: playerSafeZoneRadius };
 
         for (let step = 0; step < 50; step++) {
@@ -546,8 +546,8 @@
                 if (dPsq < minPD * minPD && dPsq > 0) {
                     const dP = Math.sqrt(dPsq);
                     const overP = minPD - dP;
-                    e1.x += (dPx / dP) * overP * 0.2;
-                    e1.y += (dPy / dP) * overP * 0.2;
+                    e1.x += (dPx / dP) * overP * 0.25;
+                    e1.y += (dPy / dP) * overP * 0.25;
                 }
 
                 for (let j = i + 1; j < list.length; j++) {
@@ -557,17 +557,17 @@
                     const dx = e1.x - e2.x;
                     const dy = e1.y - e2.y;
                     const dSq = dx * dx + dy * dy;
-                    
+
                     // Используем ИДЕАЛЬНОЕ расстояние для расталкивания (spread)
                     // Но не меньше физического размера
-                    const minD = Math.max((e1.size + e2.size) * 0.8, idealSpacing); 
-                    
+                    const minD = Math.max((e1.size + e2.size) * 0.8, idealSpacing);
+
                     if (dSq < minD * minD && dSq > 0) {
                         const d = Math.sqrt(dSq);
                         const overlap = minD - d;
 
                         // Плавное расталкивание к свободному месту
-                        const pushForce = 0.3 * (1 - step / 50); 
+                        const pushForce = 0.3 * (1 - step / 50);
                         const pushX = (dx / d) * overlap * pushForce;
                         const pushY = (dy / d) * overlap * pushForce;
 
@@ -3243,6 +3243,17 @@
     if (btnDbgGears) btnDbgGears.addEventListener('click', () => {
         SoundManager.playClick();
         if (window.TurretManager) window.TurretManager.addGears(1000);
+    });
+
+    const btnDbgPrestige = document.getElementById('btn-dbg-add-prestige');
+    if (btnDbgPrestige) btnDbgPrestige.addEventListener('click', () => {
+        console.log("[DEBUG] Clicked +10k Prestige button");
+        SoundManager.playClick();
+        if (window.PrestigeManager && window.PrestigeManager.addPrestigePoints) {
+            window.PrestigeManager.addPrestigePoints(10000);
+        } else {
+            console.error("[DEBUG] PrestigeManager.addPrestigePoints not found!");
+        }
     });
     const btnUberBackToMapV = document.getElementById('btn-uber-back-to-map');
     const btnUberBackToMapD = document.getElementById('btn-uber-defeat-back-to-map');
