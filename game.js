@@ -1034,7 +1034,8 @@
 
         if (type === 'xp') {
             // ВЫДАЕМ ОЧКИ ПРОКАЧКИ (Upgrade Points)
-            const pts = reward.points || 1;
+            const ptsPerLevel = (CONFIG.player.basePointsPerLevelUp || 1) + (player.pointsBonus || 0);
+            const pts = (reward.points || 1) * ptsPerLevel;
             if (window.UpgradeManager && window.UpgradeManager.addPoint) {
                 for (let i = 0; i < pts; i++) {
                     window.UpgradeManager.addPoint();
@@ -1254,7 +1255,10 @@
             player.xpToNext = xpForLevel(player.level);
             SoundManager.playLevelUp();
             if (typeof UpgradeManager !== 'undefined') {
-                UpgradeManager.addPoint();
+                const ptsToAdd = (CONFIG.player.basePointsPerLevelUp || 1) + (player.pointsBonus || 0);
+                for (let i = 0; i < ptsToAdd; i++) {
+                    UpgradeManager.addPoint();
+                }
             }
             leveledUp = true;
         }
@@ -1278,6 +1282,61 @@
         // Кап КД на 90%, чтобы не было нулевого отката, вызывающего зависания
         const cdr = Math.min(0.9, (player && player.cooldownReduction) || 0);
         return Math.max(0.1, base * (1 - cdr));
+    }
+
+    function processHitData(hit) {
+        const target = hit.target;
+        if (!target || !target.alive) return;
+
+        // Apply damage and knockback now
+        target.hp -= hit.damage;
+        target.hitFlash = 1;
+
+        target.kbTimer = 0.1;
+        target.kbX = Math.cos(hit.angle) * 7;
+        target.kbY = Math.sin(hit.angle) * 7;
+
+        // Effects at hit point
+        visualEffects.push({
+            type: 'slash',
+            x: target.x,
+            y: target.y,
+            angle: hit.angle + Math.PI / 2,
+            color: '#FFFFFF',
+            life: 0.2,
+            maxLife: 0.2
+        });
+
+        spawnDamageNumber(target.x, target.y - target.size, hit.damage, hit.isCrit);
+        spawnHitParticles(target.x, target.y, target.color);
+
+        // Area Damage
+        const stats = hit.stats;
+        if (player.areaDamageRadius && player.areaDamageRadius > 0) {
+            const radius = player.areaDamageRadius * (arenaSize / 400);
+            const aoeMult = player.areaDamageMult || 0.5;
+            const aoeDmg = Math.max(1, Math.round(hit.damage * aoeMult));
+
+            for (const enemy of enemies) {
+                if (enemy !== target && enemy.alive) {
+                    const d = dist(target, enemy);
+                    if (d <= radius) {
+                        enemy.hp -= aoeDmg;
+                        enemy.hitFlash = 1;
+                        spawnDamageNumber(enemy.x, enemy.y - enemy.size, aoeDmg, false, '#FF4500');
+                        spawnHitParticles(enemy.x, enemy.y, enemy.color);
+                        if (enemy.hp <= 0) {
+                            handleEnemyDeath(enemy);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check main target's death
+        if (target.hp <= 0) {
+            handleEnemyDeath(target);
+        }
     }
 
     // ── Обновление боя ──────────────────────────────────────
@@ -1477,6 +1536,13 @@
         // 1. Анимация рывка игрока
         if (player.attackAnim > 0) {
             player.attackAnim -= dt / 0.15; // длительность 0.15 сек
+            
+            // Если анимация дошла до середины или завершилась (при низком FPS) - наносим урон
+            if (player.pendingHit && player.attackAnim <= 0.5) {
+                processHitData(player.pendingHit);
+                player.pendingHit = null; // Удар обработан
+            }
+
             if (player.attackAnim <= 0) {
                 player.attackAnim = 0;
                 player.dashX = 0;
@@ -1485,66 +1551,6 @@
                 const surge = Math.sin((1 - player.attackAnim) * Math.PI); // smooth dash curve
                 player.dashX = player.dashTargetX * surge;
                 player.dashY = player.dashTargetY * surge;
-
-                // Check hit moment (when animation is halfway - peak of dash)
-                if (player.pendingHit && player.attackAnim <= 0.5) {
-                    const hit = player.pendingHit;
-                    const target = hit.target;
-
-                    if (target && target.alive) {
-                        // Apply damage and knockback now
-                        target.hp -= hit.damage;
-                        target.hitFlash = 1;
-
-                        target.kbTimer = 0.1;
-                        target.kbX = Math.cos(hit.angle) * 7;
-                        target.kbY = Math.sin(hit.angle) * 7;
-
-                        // Effects at hit point
-                        visualEffects.push({
-                            type: 'slash',
-                            x: target.x,
-                            y: target.y,
-                            angle: hit.angle + Math.PI / 2,
-                            color: '#FFFFFF',
-                            life: 0.2,
-                            maxLife: 0.2
-                        });
-
-                        spawnDamageNumber(target.x, target.y - target.size, hit.damage, hit.isCrit);
-                        spawnHitParticles(target.x, target.y, target.color);
-
-                        // Area Damage
-                        const stats = hit.stats;
-                        if (player.areaDamageRadius && player.areaDamageRadius > 0) {
-                            const radius = player.areaDamageRadius * (arenaSize / 400);
-                            const aoeMult = player.areaDamageMult || 0.5;
-                            const aoeDmg = Math.max(1, Math.round(hit.damage * aoeMult));
-
-                            for (const enemy of enemies) {
-                                if (enemy !== target && enemy.alive) {
-                                    const d = dist(target, enemy);
-                                    if (d <= radius) {
-                                        enemy.hp -= aoeDmg;
-                                        enemy.hitFlash = 1;
-                                        spawnDamageNumber(enemy.x, enemy.y - enemy.size, aoeDmg, false, '#FF4500');
-                                        spawnHitParticles(enemy.x, enemy.y, enemy.color);
-                                        if (enemy.hp <= 0) {
-                                            handleEnemyDeath(enemy);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Check main target's death
-                        if (target.hp <= 0) {
-                            handleEnemyDeath(target);
-                        }
-                    }
-                    // Hit processed
-                    player.pendingHit = null;
-                }
             }
         }
 
@@ -1616,9 +1622,14 @@
         }
 
         const stats = getCurrentStats();
-        const interval = 1.0 / stats.attackSpeed;
-        if (attackTimer >= interval) {
+        const safeAspd = Math.max(0.1, stats.attackSpeed); // Защита от NaN/Infinity при огромных статах
+        const interval = 1.0 / safeAspd;
+        
+        // Позволяем отрабатывать несколько атак в кадр при сверх-скоростях, лимит = 10 для производительности
+        let attacksProcessed = 0;
+        while (attackTimer >= interval && attacksProcessed < 10) {
             attackTimer -= interval;
+            attacksProcessed++;
             const target = player.targetEnemy;
             if (target && target.alive) {
                 // Critical hit calculation
@@ -1634,15 +1645,37 @@
                 player.dashTargetX = Math.cos(ang) * 12.5 * dashScale;
                 player.dashTargetY = Math.sin(ang) * 12.5 * dashScale;
 
-                // Save hit data to trigger at "contact" moment (peak of dash)
-                player.pendingHit = {
+                const hitData = {
                     target: target,
                     damage: roundedDmg,
                     isCrit: isCrit,
                     angle: ang,
                     stats: stats // save stats at the moment of hit
                 };
+
+                // Если старая атака еще висит (из-за высокой скорости), применяем её ПЕРЕД новой мгновенно
+                if (player.pendingHit) {
+                    processHitData(player.pendingHit);
+                    player.pendingHit = null;
+                }
+
+                if (interval < 0.075) {
+                    // При очень высокой скорости (ASP > ~13.3) атакуем сразу, не ожидая завершения половины анимации
+                    processHitData(hitData);
+                } else {
+                    // При нормальной скорости сохраняем удар для нанесения "на пике" анимации рывка
+                    player.pendingHit = hitData;
+                }
+            } else {
+                // Цели больше нет
+                attackTimer = 0;
+                break;
             }
+        }
+        
+        // Предотвращение бесконечного накопления таймера за кадр при абсурдно высоких скоростях атаки
+        if (attackTimer > interval * 10) {
+            attackTimer = interval * 10;
         }
     }
 

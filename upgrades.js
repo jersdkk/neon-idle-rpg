@@ -97,6 +97,7 @@
         areaDamagePlus: 'image/splash +damage.png',
         areaRadius: 'image/splash damage.png',
         essenceBonus: '✧',
+        pointsBonus: '⭐',
     };
 
     // ─────────────────────────────────────────────────────────
@@ -151,6 +152,9 @@
 
     function getUpgradeCost(node) {
         const bought = state.currentLevels[node.id] || 0;
+        if (node.levelCost !== undefined) {
+            return node.costPerLevel + (bought * node.levelCost);
+        }
         if (node.costMultiplier && node.costMultiplier > 1) {
             return Math.floor(node.costPerLevel * Math.pow(node.costMultiplier, bought));
         }
@@ -172,6 +176,7 @@
         p.areaRadius = CONFIG.player.baseAreaRadius || 0; // Добавлено: базовый радиус
         p.cooldownReduction = CONFIG.player.baseCooldownReduction || 0;
         p.essenceMult = CONFIG.player.baseEssenceMult || 1;
+        p.pointsBonus = CONFIG.player.basePointsBonus || 0;
         p.skills = { lightning: 0, haste: 0, power: 0, grenade: 0 };
 
         // Перебираем все вкладки и узлы
@@ -196,6 +201,7 @@
                     case 'skillGrenade': p.skills.grenade = lvl; break;
                     case 'skillCDR': p.cooldownReduction += totalValue; break;
                     case 'essenceBonus': p.essenceMult += totalValue; break;
+                    case 'pointsBonus': p.pointsBonus += totalValue; break;
                     case 'areaDamage': p.areaDamageRadius += totalValue; break;
                     case 'areaDamagePlus': p.areaDamageMult += totalValue; break;
                     case 'areaRadius': p.areaDamageRadius += totalValue; break;
@@ -272,6 +278,7 @@
                     case 'skillGrenade': p.skills.grenade = (p.skills.grenade || 0) + 1; window.Game.updateSkillUI(); break;
                     case 'skillCDR': p.cooldownReduction = (p.cooldownReduction || 0) + node.valuePerLevel; break;
                     case 'essenceBonus': p.essenceMult = (p.essenceMult || 1) + node.valuePerLevel; break;
+                    case 'pointsBonus': p.pointsBonus = (p.pointsBonus || 0) + node.valuePerLevel; break;
                     case 'areaDamage':
                         p.areaDamageRadius = (p.areaDamageRadius || 0) + node.valuePerLevel;
                         break;
@@ -477,6 +484,8 @@
                     if (node.type === 'essenceBonus') {
                         const mult = 1 + currVal * node.valuePerLevel;
                         displayValue = `x${mult.toFixed(1)}`;
+                    } else if (node.type === 'pointsBonus') {
+                        displayValue = `+${currVal * node.valuePerLevel}`;
                     } else if (node.type === 'areaDamage') {
                         displayValue = '💥';
                     } else if (node.type === 'areaRadius') {

@@ -14,6 +14,7 @@ const CONFIG = {
         baseAreaDamageMult: 0.1, // базовый множитель урона по площади
         baseCooldownReduction: 0, // уменьшение времени перезарядки навыков
         baseEssenceMult: 1,      // множитель получаемой эссенции
+        basePointsPerLevelUp: 10, // базовое количество очков прокачки за достижение уровня
         startLevel: 1,
         // XP формула: baseXP * level ^ exponent
         xp: {
@@ -70,8 +71,8 @@ const CONFIG = {
             // Множитель опыта
             xpMultiplier: 6000.0,
             xpMultiplierCycles: [
-                { maxLevel: 50, value: 6000.0 },
-                { maxLevel: 1000000, value: 14000.0 }
+                { maxLevel: 50, value: 3000.0 },
+                { maxLevel: 1000000, value: 7000.0 }
             ],
 
             // Выпадение эссенции
@@ -84,11 +85,11 @@ const CONFIG = {
             timeoutSeconds: 30,
             hpExponentCycles: [
                 { maxLevel: 15, value: 1.80 },
-                { maxLevel: 35, value: 2.00 },
+                { maxLevel: 35, value: 1.99 },
                 { maxLevel: 45, value: 2.20 },
                 { maxLevel: 65, value: 2.30 },
                 { maxLevel: 85, value: 2.50 },
-                { maxLevel: 10000, value: 2.70 },
+                { maxLevel: 10000, value: 2.50 },
                 { maxLevel: 1000000, value: 5.0 }
             ],
         },
@@ -120,25 +121,26 @@ const CONFIG = {
         screen1: {
             label: 'Combat Skills',
             nodes: [
-                { id: 'attack', label: 'Attack', type: 'damage', maxLevel: 200, valuePerLevel: 3, costPerLevel: 1, unlockAfterLocation: 0, gridOrder: 0 },
-                { id: 'attackSpeed', label: 'Attack Speed', type: 'attackSpeed', maxLevel: 100, valuePerLevel: 0.06, costPerLevel: 1, unlockAfterLocation: 0, gridOrder: 1 },
-                { id: 'critChance', label: 'Crit Chance', type: 'critChance', maxLevel: 30, valuePerLevel: 0.01, costPerLevel: 2, unlockAfterLocation: 0, gridOrder: 2 },
-                { id: 'critDamage', label: 'Crit Damage', type: 'critDamage', maxLevel: 200, valuePerLevel: 0.10, costPerLevel: 2, unlockAfterLocation: 0, gridOrder: 3 },
-                { id: 'essenceBonus', label: 'Essence Bonus', type: 'essenceBonus', maxLevel: 200, valuePerLevel: 0.50, costPerLevel: 1, unlockAfterLocation: 5, gridOrder: 4 },
-                { id: 'areaDamage', label: 'Area Damage', type: 'areaDamage', maxLevel: 1, valuePerLevel: 55, costPerLevel: 5, unlockAfterLocation: 20, gridOrder: 5 },
-                { id: 'areaRadius', label: 'Area Radius', type: 'areaRadius', maxLevel: 40, valuePerLevel: 2, costPerLevel: 3, unlockAfterLocation: 20, gridOrder: 6 },
-                { id: 'areaDamagePlus', label: 'Area Damage Force', type: 'areaDamagePlus', maxLevel: 18, valuePerLevel: 0.05, costPerLevel: 3, unlockAfterLocation: 20, gridOrder: 7 },
+                { id: 'attack', label: 'Attack', type: 'damage', maxLevel: 200, valuePerLevel: 5, costPerLevel: 1, levelCost: 7, unlockAfterLocation: 0, gridOrder: 0 },
+                { id: 'attackSpeed', label: 'Attack Speed', type: 'attackSpeed', maxLevel: 100, valuePerLevel: 0.04, costPerLevel: 1, levelCost: 9, unlockAfterLocation: 0, gridOrder: 1 },
+                { id: 'critChance', label: 'Crit Chance', type: 'critChance', maxLevel: 30, valuePerLevel: 0.01, costPerLevel: 2, levelCost: 27, unlockAfterLocation: 0, gridOrder: 2 },
+                { id: 'critDamage', label: 'Crit Damage', type: 'critDamage', maxLevel: 200, valuePerLevel: 0.10, costPerLevel: 2, levelCost: 26, unlockAfterLocation: 0, gridOrder: 3 },
+                { id: 'essenceBonus', label: 'Essence Bonus', type: 'essenceBonus', maxLevel: 200, valuePerLevel: 0.50, costPerLevel: 1, levelCost: 11, unlockAfterLocation: 5, gridOrder: 5 },
+                { id: 'pointsBonus', label: 'Points Bonus', type: 'pointsBonus', maxLevel: 100, valuePerLevel: 10, costPerLevel: 5, levelCost: 10, unlockAfterLocation: 0, gridOrder: 4 },
+                { id: 'areaDamage', label: 'Area Damage', type: 'areaDamage', maxLevel: 1, valuePerLevel: 55, costPerLevel: 400, levelCost: 0, unlockAfterLocation: 20, gridOrder: 6 },
+                { id: 'areaRadius', label: 'Area Radius', type: 'areaRadius', maxLevel: 40, valuePerLevel: 2, costPerLevel: 100, levelCost: 52, unlockAfterLocation: 20, gridOrder: 7 },
+                { id: 'areaDamagePlus', label: 'Area Damage Force', type: 'areaDamagePlus', maxLevel: 18, valuePerLevel: 0.05, costPerLevel: 103, levelCost: 42, unlockAfterLocation: 30, gridOrder: 8 },
             ],
         },
         screen2: {
             label: 'Skills',
             currency: 'essence',
             nodes: [
-                { id: 'skillLightning', label: 'Lightning Strike', type: 'skillLightning', maxLevel: 50, valuePerLevel: 65, costPerLevel: 1, costMultiplier: 2.5, gridOrder: 0, requires: null },
-                { id: 'skillCDR', label: 'Skill CDR', type: 'skillCDR', maxLevel: 15, valuePerLevel: 0.03, costPerLevel: 3, costMultiplier: 2, gridOrder: 1, requires: null },
-                { id: 'skillHaste', label: 'Attack Speedup', type: 'skillHaste', maxLevel: 50, valuePerLevel: 0.6, costPerLevel: 2, costMultiplier: 2.5, gridOrder: 2, requires: null },
-                { id: 'skillPower', label: 'Damage Increase', type: 'skillPower', maxLevel: 50, valuePerLevel: 0.15, costPerLevel: 2, costMultiplier: 2, gridOrder: 3, requires: null },
-                { id: 'skillGrenade', label: 'Grenade', type: 'skillGrenade', maxLevel: 50, valuePerLevel: 100, costPerLevel: 5, costMultiplier: 2.5, gridOrder: 4, requires: null },
+                { id: 'skillLightning', label: 'Lightning Strike', type: 'skillLightning', maxLevel: 50, valuePerLevel: 100, costPerLevel: 1, costMultiplier: 2.5, gridOrder: 0, requires: null },
+                { id: 'skillCDR', label: 'Skill CDR', type: 'skillCDR', maxLevel: 15, valuePerLevel: 0.04, costPerLevel: 3, costMultiplier: 2, gridOrder: 1, requires: null },
+                { id: 'skillHaste', label: 'Attack Speedup', type: 'skillHaste', maxLevel: 50, valuePerLevel: 0.2, costPerLevel: 2, costMultiplier: 2.5, gridOrder: 2, requires: null },
+                { id: 'skillPower', label: 'Damage Increase', type: 'skillPower', maxLevel: 50, valuePerLevel: 0.3, costPerLevel: 2, costMultiplier: 2, gridOrder: 3, requires: null },
+                { id: 'skillGrenade', label: 'Grenade', type: 'skillGrenade', maxLevel: 50, valuePerLevel: 150, costPerLevel: 5, costMultiplier: 2.5, gridOrder: 4, requires: null },
             ]
         },
         screen3: {
@@ -146,7 +148,7 @@ const CONFIG = {
             currency: 'prestige',
             unlockLevel: 35,
             nodes: [
-                { id: 'prestige_damage', label: 'Damage', description: 'Increases total damage by 4%', valuePerLevel: 0.04, unit: '%', baseCost: 1.5, costExponent: 2.5, maxLevel: 100, icon: '⚔️' },
+                { id: 'prestige_damage', label: 'Damage', description: 'Increases total damage by 4%', valuePerLevel: 0.05, unit: '%', baseCost: 1.5, costExponent: 2.5, maxLevel: 100, icon: '⚔️' },
                 { id: 'prestige_crit_dmg', label: 'Crit Damage', description: 'Increases crit damage multiplier', valuePerLevel: 0.05, unit: 'x', baseCost: 2, costExponent: 2.5, maxLevel: 100, icon: '💥' },
                 { id: 'prestige_crit_chance', label: 'Crit Chance', description: 'Increases crit strike chance', valuePerLevel: 0.02, unit: '%', baseCost: 3, costExponent: 2.5, maxLevel: 25, icon: '🎯' },
                 { id: 'prestige_essence', label: 'Essence', description: 'Increases essence gained', valuePerLevel: 0.20, unit: 'x', baseCost: 2, costExponent: 3.0, maxLevel: 100, icon: '★' },
@@ -169,7 +171,7 @@ const CONFIG = {
         // Последовательность редкости для первых N открытий (сейчас 5)
         fixedSequence: ['common', 'rare', 'epic', 'legendary', 'common'],
         // Явные требования по убийствам для первых 5 коробок из очереди выше
-        fixedRequirements: [30, 40, 50, 90, 30],
+        fixedRequirements: [30, 30, 40, 70, 100],
         // Явный тип награды для первых 5 коробок ('xp' или 'essence')
         fixedRewardTypes: ['xp', 'essence', 'xp', 'essence', 'xp'],
 
@@ -243,3 +245,35 @@ const CONFIG = {
         },
     },
 };
+
+// ============================================================
+// Синхронизация: чтобы изменения `valuePerLevel` в скиллах
+// из UI сразу влияли на математику игры и симулятора.
+// ============================================================
+(() => {
+    if (typeof CONFIG === 'undefined' || !CONFIG.upgrades || !CONFIG.upgrades.screen2) return;
+    const nodes = CONFIG.upgrades.screen2.nodes;
+
+    const powerNode = nodes.find(n => n.id === 'skillPower');
+    if (powerNode && powerNode.valuePerLevel !== undefined) {
+        // Устанавливаем реальный бонус урона равным значению из интерфейса
+        CONFIG.skills.power.damageBonusPerLevel = powerNode.valuePerLevel;
+    }
+
+    const hasteNode = nodes.find(n => n.id === 'skillHaste');
+    if (hasteNode && hasteNode.valuePerLevel !== undefined) {
+        CONFIG.skills.haste.speedBonusPerLevel = hasteNode.valuePerLevel;
+    }
+
+    const lightningNode = nodes.find(n => n.id === 'skillLightning');
+    if (lightningNode && lightningNode.valuePerLevel !== undefined) {
+        // Делим на 100, т.к. в UI значение 65 означает 65%
+        CONFIG.skills.lightning.damageMultiplier = lightningNode.valuePerLevel / 100;
+    }
+
+    const grenadeNode = nodes.find(n => n.id === 'skillGrenade');
+    if (grenadeNode && grenadeNode.valuePerLevel !== undefined) {
+        // Делим на 100
+        CONFIG.skills.grenade.damageMultiplier = grenadeNode.valuePerLevel / 100;
+    }
+})();

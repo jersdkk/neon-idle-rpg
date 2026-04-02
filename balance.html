@@ -102,6 +102,7 @@
                 <label for="playerBehavior">Поведение игрока:</label>
                 <select id="playerBehavior"
                     style="background:#333; color:#fff; border:1px solid #555; padding:5px; width: 250px; display: block; margin-top: 5px; margin-bottom: 20px;">
+                    <option value="pro">🎯 Про игрок (Скорость / 0 смертей)</option>
                     <option value="optimal">Оптимальное (Макс. ДПС)</option>
                     <option value="random">Случайное (Хаос)</option>
                     <option value="worst">Худшее (Мин. ДПС)</option>
@@ -308,7 +309,8 @@
                 areaDamageRadius: CONFIG.player.baseAreaDamageRadius || 0,
                 areaDamageMult: CONFIG.player.baseAreaDamageMult || 0.3,
                 cooldownReduction: CONFIG.player.baseCooldownReduction || 0,
-                essenceMult: CONFIG.player.baseEssenceMult || 1
+                essenceMult: CONFIG.player.baseEssenceMult || 1,
+                pointsBonus: CONFIG.player.basePointsBonus || 0
             };
 
             const logs = [];
@@ -357,11 +359,12 @@
 
                 if (type === 'xp') {
                     // ВЫДАЕМ ОЧКИ ПРОКАЧКИ (Upgrade Points)
-                    const pts = reward.points || 1;
+                    const ptsPerLevel = (CONFIG.player.basePointsPerLevelUp || 1) + (playerStats.pointsBonus || 0);
+                    const pts = (reward.points || 1) * ptsPerLevel;
                     currentPoints += pts;
 
                     logMsg += `<span style="color: #00FF6A; font-weight: bold;">+${pts} Points</span>`;
-                    
+
                     // Пытаемся потратить полученные очки сразу
                     runSpending(dispLvl);
                 } else {
@@ -426,7 +429,9 @@
             // Функция расчета ДПС с динамическими навыками
             function getFullDPS(s, isBoss = true) {
                 // CDR из динамических навыков
-                const dynCDR = currentSkillLevelsS2.skillCDR ? (currentSkillLevelsS2.skillCDR * 0.05) : 0;
+                const cdrNode = CONFIG.upgrades.screen2.nodes.find(n => n.id === 'skillCDR');
+                const cdrVal = cdrNode ? cdrNode.valuePerLevel : 0.03;
+                const dynCDR = currentSkillLevelsS2.skillCDR ? (currentSkillLevelsS2.skillCDR * cdrVal) : 0;
 
                 // Баффы Power и Haste с учетом динамических уровней
                 let dynPowerMult = 1;
@@ -470,12 +475,12 @@
                     const grnAreaMult = !isBoss ? 2.5 : 1;
                     skillsDps += (avgDmg * grn.damageMultiplier * currentSkillLevelsS2.skillGrenade * grnAreaMult) / (grn.cooldown * (1 - dynCDR));
                 }
-                
+
                 let tDps = getTurretDPS(maxLevelReached);
 
                 return autoAtkDps + skillsDps + tDps;
             }
-            
+
             // Расчет чистого урона турелей
             function getTurretDPS(maxLvl) {
                 let activeTurrets = CONFIG.turrets.slotUnlockLevels.filter(l => maxLvl >= l).length;
@@ -484,10 +489,10 @@
                 const baseSpd = CONFIG.turrets.baseAttackSpeed;
                 const dmgLvl = currentTurretLevels.damage || 0;
                 const spdLvl = currentTurretLevels.attackSpeed || 0;
-                
+
                 const cDmg = baseDmg * Math.pow(1 + CONFIG.turrets.upgrades.damage.valuePerLevel, dmgLvl);
                 const cSpd = baseSpd + (spdLvl * CONFIG.turrets.upgrades.attackSpeed.valuePerLevel);
-                
+
                 return cDmg * cSpd * activeTurrets;
             }
 
@@ -520,7 +525,26 @@
 
                     if (potentialNodes.length > 0) {
                         let bestCandidate = null;
-                        if (behavior === 'optimal') {
+                        if (behavior === 'pro') {
+                            // Про игрок: CDR приоритет первые 3 уровня, затем лучший по ROI
+                            potentialNodes.sort((a, b) => b.efficiency - a.efficiency);
+                            const cdrEntry = potentialNodes.find(p => p.node.id === 'skillCDR');
+                            const cdrLvl = currentSkillLevelsS2.skillCDR || 0;
+                            if (cdrEntry && cdrLvl < 3 && currentEssence >= cdrEntry.cost) {
+                                bestCandidate = cdrEntry;
+                            } else {
+                                const bestOverall = potentialNodes[0];
+                                const affordable = potentialNodes.filter(p => currentEssence >= p.cost);
+                                if (currentEssence >= bestOverall.cost) {
+                                    bestCandidate = bestOverall;
+                                } else if (bestOverall.cost <= currentEssence * 2.5) {
+                                    // Копим на лучшее (в пределах 2.5x баланса)
+                                    break;
+                                } else if (affordable.length > 0) {
+                                    bestCandidate = affordable[0];
+                                }
+                            }
+                        } else if (behavior === 'optimal') {
                             potentialNodes.sort((a, b) => b.efficiency - a.efficiency);
                             let bestOverall = potentialNodes[0];
                             let affordableNodes = potentialNodes.filter(p => currentEssence >= p.cost);
@@ -601,28 +625,28 @@
                 const amount = Math.floor(enemy.essenceDrop * totalEssenceMult);
                 if (amount > 0) currentEssence += amount;
             }
-            
+
             function tryBuyTurrets(dispLvl) {
-                if(dispLvl < 45) return;
+                if (dispLvl < 45) return;
                 const uCfg = CONFIG.turrets.upgrades;
                 let bought = true;
-                while(bought) {
+                while (bought) {
                     bought = false;
                     Object.keys(uCfg).forEach(key => {
                         let cfg = uCfg[key];
                         let curl = currentTurretLevels[key] || 0;
                         if (curl >= cfg.maxLevel) return;
-                        
+
                         let cost = Math.floor(cfg.baseCost * Math.pow(cfg.costMultiplier, curl));
-                        if(currentGears >= cost) {
+                        if (currentGears >= cost) {
                             currentGears -= cost;
                             currentTurretLevels[key]++;
                             bought = true;
-                            
+
                             if (withDeathAtBoss && dispLvl >= minLogLvl) {
                                 let tDps = getTurretDPS(maxLevelReached);
                                 let dpsFormat = tDps > 1000000 ? (tDps / 1000000).toFixed(2) + 'M' : (tDps > 1000 ? (tDps / 1000).toFixed(1) + 'K' : tDps.toFixed(1));
-                                logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0, 210, 255, 0.1); padding: 2px 4px; border-left: 2px solid #00d2ff;"><span style="color: #888;">Loc ${dispLvl}:</span> <b>⚙️ Турель ${cfg.label} Lv${curl+1}</b> (${cost} Дет.), ДПС пушек: <span style="color: #00d2ff;">${dpsFormat}</span></div>`);
+                                logs.push(`<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0, 210, 255, 0.1); padding: 2px 4px; border-left: 2px solid #00d2ff;"><span style="color: #888;">Loc ${dispLvl}:</span> <b>⚙️ Турель ${cfg.label} Lv${curl + 1}</b> (${cost} Дет.), ДПС пушек: <span style="color: #00d2ff;">${dpsFormat}</span></div>`);
                             }
                         }
                     });
@@ -660,6 +684,7 @@
                     const farmInterval = window.Scaling.getBossInterval(locLvl);
                     const farmStart = Math.floor((locLvl - 1) / farmInterval) * farmInterval + 1;
                     let didPrestige = false;
+
                     while (getFullDPS(playerStats) * bossCfg.timeoutSeconds < bossHP && attemptsPerBoss[locLvl] < 200) {
                         attemptsPerBoss[locLvl]++;
                         totalLosses++;
@@ -701,7 +726,7 @@
                                 while (currentXP >= xpForLevel(playerLvl)) {
                                     currentXP -= xpForLevel(playerLvl);
                                     playerLvl++;
-                                    currentPoints++;
+                                    currentPoints += (CONFIG.player.basePointsPerLevelUp || 1) + (playerStats.pointsBonus || 0);
                                     runSpending(f);
                                 }
                                 tryBuySkills(f);
@@ -749,6 +774,22 @@
                                 } else if (attemptsPerBoss[locLvl] >= 5) {
                                     shouldPrestige = true;
                                 }
+                            } else if (behavior === 'про игрок' || behavior === 'pro') {
+                                // Про-игрок попадает в петлю смертей только если предфарм не помог.
+                                // Здесь строго: престижимся после 1-й смерти если это окупается
+                                let nextCostPro = Infinity;
+                                CONFIG.upgrades.screen3.nodes.forEach(n => {
+                                    const curl = prestigeSkills[n.id] || 0;
+                                    if (curl < n.maxLevel) {
+                                        const cost = Math.ceil(Math.pow(n.baseCost * (curl + 1), n.costExponent || 3));
+                                        if (cost < nextCostPro) nextCostPro = cost;
+                                    }
+                                });
+                                if (attemptsPerBoss[locLvl] >= 1 && (prestigePoints + pReward) >= nextCostPro) {
+                                    shouldPrestige = true;
+                                } else if (attemptsPerBoss[locLvl] >= 3) {
+                                    shouldPrestige = true;
+                                }
                             }
                         }
 
@@ -774,7 +815,15 @@
                                     if (nodesP.length === 0) break;
 
                                     let bestP = null;
-                                    if (behavior === 'optimal') {
+                                    if (behavior === 'pro') {
+                                        // Про-игрок: damage → crit_dmg → bonus → crit_chance → essence
+                                        const prioMap = { prestige_damage: 5, prestige_crit_dmg: 4, prestige_bonus: 3, prestige_crit_chance: 2, prestige_essence: 1 };
+                                        nodesP.sort((a, b) => {
+                                            const pa = prioMap[a.node.id] || 0, pb = prioMap[b.node.id] || 0;
+                                            return (pb / b.cost) - (pa / a.cost);
+                                        });
+                                        if (prestigePoints >= nodesP[0].cost) bestP = nodesP[0];
+                                    } else if (behavior === 'optimal') {
                                         nodesP.sort((a, b) => {
                                             let effA = a.node.id === 'prestige_essence' ? 100 : a.node.id === 'prestige_damage' ? 50 : 10;
                                             let effB = b.node.id === 'prestige_essence' ? 100 : b.node.id === 'prestige_damage' ? 50 : 10;
@@ -898,7 +947,8 @@
                     while (currentXP >= xpForLevel(playerLvl)) {
                         currentXP -= xpForLevel(playerLvl);
                         playerLvl++;
-                        currentPoints++;
+                        // Начисляем правильное количество очков (не 1, а basePointsPerLevelUp + бонус)
+                        currentPoints += (CONFIG.player.basePointsPerLevelUp || 1) + (playerStats.pointsBonus || 0);
                         runSpending(locLvl);
                     }
                     tryBuySkills(locLvl);
@@ -913,7 +963,7 @@
                         nodes.forEach(node => {
                             const clvl = currentSkillLevels[node.id];
                             if (clvl >= node.maxLevel) return;
-                            const cost = node.costPerLevel;
+                            const cost = node.levelCost !== undefined ? node.costPerLevel + (clvl * node.levelCost) : node.costPerLevel;
 
                             if (node.unlockAfterLocation !== undefined) {
                                 if (dispLvl <= node.unlockAfterLocation) return;
@@ -927,6 +977,7 @@
                             if (node.type === 'areaRadius') tempStats.areaDamageRadius += node.valuePerLevel;
                             if (node.type === 'areaDamagePlus') tempStats.areaDamageMult += node.valuePerLevel;
                             if (node.type === 'essenceBonus') tempStats.essenceMult += node.valuePerLevel;
+                            if (node.type === 'pointsBonus') tempStats.pointsBonus += node.valuePerLevel;
 
                             // Для оценки эффективности используем урон ПО БОССУ (IsBoss=true)
                             const cur = getFullDPS(playerStats, true);
@@ -939,24 +990,58 @@
                                 const nextMob = getFullDPS(tempStats, false);
                                 eff = ((nextMob - curMob) / cost) * 0.5;
                             }
-                            if (node.type === 'essenceBonus' && eff === 0) eff = 0.001;
+                            if ((node.type === 'essenceBonus' || node.type === 'pointsBonus') && eff === 0) eff = 0.001;
                             potentialNodes.push({ node, efficiency: eff, cost });
                         });
 
                         if (potentialNodes.length > 0) {
                             let bestCandidate = null;
-                            if (behavior === 'optimal') {
+                            if (behavior === 'pro') {
+                                // Про игрок: экономические апгрейды оцениваются по долгосрочной ценности
+                                // Средняя эффективность чисто DPS-апгрейдов (исключая economy-ноды)
+                                const dpsOnlyNodes = potentialNodes.filter(p =>
+                                    p.node.type !== 'pointsBonus' && p.node.type !== 'essenceBonus');
+                                const avgDpsEff = dpsOnlyNodes.length > 0
+                                    ? dpsOnlyNodes.reduce((s, p) => s + Math.max(0, p.efficiency), 0) / dpsOnlyNodes.length
+                                    : 0.05;
+
+                                // Оцениваем реальную ценность economy-апгрейдов
+                                const estFutureLvlUps = Math.max(10, (maxLocLevel - dispLvl) * 2);
+                                potentialNodes.forEach(p => {
+                                    if (p.node.type === 'pointsBonus') {
+                                        // +valuePerLevel очков на каждый будущий level-up → конвертируется в DPS
+                                        // Делим на крупный коэффициент чтобы не быть топ-1 приоритетом
+                                        p.efficiency = (avgDpsEff * p.node.valuePerLevel * estFutureLvlUps) / (p.cost * 50);
+                                    }
+                                    if (p.node.type === 'essenceBonus' && dispLvl >= 5) {
+                                        // Эссенция → навыки → DPS, но с меньшим весом (непрямой путь)
+                                        p.efficiency = (avgDpsEff * p.node.valuePerLevel * estFutureLvlUps) / (p.cost * 100);
+                                    }
+                                });
+
+                                potentialNodes.sort((a, b) => b.efficiency - a.efficiency);
+                                const bestOverall = potentialNodes[0];
+                                const affordable = potentialNodes.filter(p => currentPoints >= p.cost);
+                                if (currentPoints >= bestOverall.cost) {
+                                    bestCandidate = bestOverall;
+                                } else if (bestOverall.cost <= currentPoints + 5) {
+                                    // Ждём только если лучший вариант в пределах 5 очков
+                                    break;
+                                } else if (affordable.length > 0) {
+                                    bestCandidate = affordable[0];
+                                }
+                            } else if (behavior === 'optimal') {
                                 potentialNodes.sort((a, b) => b.efficiency - a.efficiency);
 
                                 // Умное ожидание: Ищем лучший узел, который мы можем позволить себе 
-                                // в ближайшем будущем (разница в цене не более 3 очков)
+                                // в ближайшем будущем (разница в цене не более 20 очков)
                                 let bestOverall = potentialNodes[0];
                                 let affordableNodes = potentialNodes.filter(p => currentPoints >= p.cost);
 
                                 if (currentPoints >= bestOverall.cost) {
                                     bestCandidate = bestOverall;
-                                } else if (bestOverall.cost > currentPoints + 3) {
-                                    // Если лучший СЛИШКОМ дорогой (нужно ждать > 3 уровней),
+                                } else if (bestOverall.cost > currentPoints + 10) {
+                                    // Если лучший СЛИШКОМ дорогой (нужно ждать > 20 очков),
                                     // то берем лучшее из того, что можем купить сейчас, чтобы не стоять на месте
                                     if (affordableNodes.length > 0) {
                                         bestCandidate = affordableNodes[0];
@@ -1000,6 +1085,7 @@
                                 if (targetNode.type === 'areaRadius') playerStats.areaDamageRadius += targetNode.valuePerLevel;
                                 if (targetNode.type === 'areaDamagePlus') playerStats.areaDamageMult += targetNode.valuePerLevel;
                                 if (targetNode.type === 'essenceBonus') playerStats.essenceMult += targetNode.valuePerLevel;
+                                if (targetNode.type === 'pointsBonus') playerStats.pointsBonus += targetNode.valuePerLevel;
                                 let nextDps = getFullDPS(playerStats);
                                 if (withDeathAtBoss && dispLvl >= minLogLvl) {
                                     let diff = nextDps > 0 ? ((nextDps - prevDps) / prevDps * 100).toFixed(1) : 0;
@@ -1060,7 +1146,7 @@
             // Запускаем две симуляции (симулируем всегда от 1 до maxLevel, чтобы ресурсы накопились достоверно)
             const resultsIdeal = simulatePlayerDPS(minLevel, maxLevel, activeSkills, prestigeSkills, behavior, false);
             const resultsReal = simulatePlayerDPS(minLevel, maxLevel, activeSkills, prestigeSkills, behavior, true);
-            
+
             // Обрезка графиков под выбранный интервал
             const sliceStart = Math.max(0, minLevel - 1);
             const sliceEnd = maxLevel;
