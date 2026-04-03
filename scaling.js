@@ -27,7 +27,12 @@ window.Scaling = {
         // Гарантируем, что level и n - числа
         const safeLvl = Number(level) || 1;
         const safeN = Number(n) || 1.1;
-        const base = Number(type.baseHP) || 10;
+        let base = Number(type.baseHP) || 10;
+        
+        // Если это самая первая локация, добавляем +100 к базовому HP по просьбе пользователя
+        if (safeLvl === 1) {
+            base += 100;
+        }
 
         // Формула: baseHP * level^n
         const hp = base * Math.pow(Math.max(1, safeLvl), safeN);

@@ -207,17 +207,10 @@
             playClick: () => {
                 if (!VISUALS.sounds.enabled) return;
                 init();
-                if (clickBuffer && audioCtx) {
-                    const source = audioCtx.createBufferSource();
-                    const gain = audioCtx.createGain();
-                    source.buffer = clickBuffer;
-                    gain.gain.setValueAtTime(0.5 * VISUALS.sounds.masterVolume, audioCtx.currentTime);
-                    source.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    source.start(0);
-                } else {
-                    play(600, 'sine', 0.05, 0.5);
-                }
+                // 1. Ультра-короткий "щелчок" (высокий прямоугольный звук) для атаки
+                play(1200, 'square', 0.015, 0.1); 
+                // 2. Тело клика (мягкий синус) с легким затуханием
+                setTimeout(() => play(650, 'sine', 0.05, 0.2, -300), 2);
             },
             playVictory: () => {
                 play(523.25, 'sine', 0.15, 0.3);
