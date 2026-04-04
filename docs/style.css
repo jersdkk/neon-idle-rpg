@@ -27,8 +27,12 @@ body {
   background: #050510;
   font-family: 'Orbitron', sans-serif;
   color: #E0E0FF;
+  
+  /* Отключаем выделение текста и системную подсветку при тапе */
   user-select: none;
-  /* Запрещаем выделение текста во всей игре */
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 /* Скрываем скроллбары для WebKit (Chrome, Safari) */

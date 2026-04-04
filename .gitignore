@@ -1,4 +1,22 @@
+# Зависимости
 node_modules/
+
+# Веб-сборка
+docs/index.html.bak
+
+# Android Studio и Gradle временные файлы
+.gradle/
+.idea/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/captures/
+android/*.iml
+
+# Capacitor
+/android/app/src/main/assets/public/
+/android/app/src/main/assets/capacitor.config.json
+
+# Прочее
 .DS_Store
-.gemini/
-*.tmp
+*.log

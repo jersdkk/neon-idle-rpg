@@ -12,8 +12,9 @@
     // Флаг для предотвращения автосохранения при сбросе
     let isResetting = false;
 
-    // Флаг для запуска геймплея CrazyGames (только один раз за сессию)
-    let hasStartedCrazyGamesGameplay = false;
+    // ── Мобильное Ли Окружение (для оптимизации производительности) ──
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     VISUALS.enemies.types.forEach((vType, i) => {
         if (CONFIG.enemies.types[i]) Object.assign(CONFIG.enemies.types[i], vType);
     });
@@ -207,10 +208,11 @@
             playClick: () => {
                 if (!VISUALS.sounds.enabled) return;
                 init();
-                // 1. Ультра-короткий "щелчок" (высокий прямоугольный звук) для атаки
-                play(1200, 'square', 0.015, 0.1); 
-                // 2. Тело клика (мягкий синус) с легким затуханием
-                setTimeout(() => play(650, 'sine', 0.05, 0.2, -300), 2);
+                // Приятный мягкий клик (натуральный звук без неоновой резкости)
+                // 1. Акустический "тик" (короткий мягкий синус)
+                play(700, 'sine', 0.012, 0.12); 
+                // 2. Мягкое тело клика (низкий затухающий синус)
+                setTimeout(() => play(350, 'sine', 0.06, 0.15, -100), 2);
             },
             playVictory: () => {
                 play(523.25, 'sine', 0.15, 0.3);
@@ -236,7 +238,10 @@
                 if (bgMusic) bgMusic.pause();
                 if (bossMusic) {
                     bossMusic.volume = VISUALS.sounds.musicVolume * VISUALS.sounds.masterVolume;
-                    bossMusic.currentTime = 0;
+                    // Исправлено: Сбрасываем время только если музыка НЕ играет
+                    if (bossMusic.paused) {
+                        bossMusic.currentTime = 0;
+                    }
                     bossMusic.play().catch(e => console.warn("Boss music play failed", e));
                 }
             },
@@ -246,7 +251,10 @@
                 if (bossMusic) bossMusic.pause();
                 if (bgMusic) {
                     bgMusic.volume = VISUALS.sounds.musicVolume * VISUALS.sounds.masterVolume;
-                    bgMusic.play().catch(e => console.warn("Main music play failed", e));
+                    // Исправлено: Не перезапускаем, если уже играет
+                    if (bgMusic.paused) {
+                        bgMusic.play().catch(e => console.warn("Main music play failed", e));
+                    }
                 }
             },
             pauseMusic: () => {
@@ -649,18 +657,6 @@
     function initLevel(locLvl, keepPlayer) {
         console.log(`[INIT] Запуск уровня: ${locLvl}, Сохранить персонажа: ${keepPlayer}`);
         resize();
-
-        // Отправляем событие начала геймплея в CrazyGames SDK (один раз за сессию)
-        if (!hasStartedCrazyGamesGameplay && typeof window.CG !== 'undefined') {
-            setTimeout(() => {
-                if (window.CG && window.CG.game) {
-                    window.CG.game.gameplayStart();
-                    window.CG.game.loadingStop();
-                    console.log("[CrazyGames] Gameplay Start & Loading Stop executed with delay.");
-                }
-            }, 500);
-            hasStartedCrazyGamesGameplay = true;
-        }
 
         locationLevel = locLvl || (CONFIG && CONFIG.location ? CONFIG.location.startLevel : 1) || 1;
 
@@ -1685,6 +1681,12 @@
 
         // Мгновенный вылет (для медленных атак, скиллов, бомб, турелей) — без задержки
         if (instant) {
+            // Ограничение на количество одновременных вылетов урона (для оптимизации на мобильных)
+            const maxDamageNumbers = isMobile ? 15 : 25;
+            if (damageNumbers.length > maxDamageNumbers) {
+                damageNumbers.splice(0, damageNumbers.length - maxDamageNumbers);
+            }
+
             let formattedAmount = amount;
             if (formattedAmount >= 1e12) formattedAmount = (formattedAmount / 1e12).toFixed(1).replace(/\.0$/, '') + 'т';
             else if (formattedAmount >= 1e9) formattedAmount = (formattedAmount / 1e9).toFixed(1).replace(/\.0$/, '') + 'б';
@@ -1850,6 +1852,12 @@
     }
 
     function updateParticles(dt) {
+        // Ограничение общего количества частиц для производительности
+        const maxParticles = isMobile ? 180 : 350;
+        if (particles.length > maxParticles) {
+            particles.splice(0, particles.length - maxParticles);
+        }
+
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
             p.x += p.vx * dt;
@@ -2088,6 +2096,9 @@
     // ── Draw particles ────────────────────────────────────
     function drawParticles() {
         const scale = arenaSize / 400;
+        // На мобильных отключаем или минимизируем shadowBlur для частиц, если их много
+        const skipShadows = isMobile && (particles.length > 50);
+        
         for (const p of particles) {
             ctx.save();
             const alpha = p.life / p.maxLife;
@@ -2095,10 +2106,12 @@
 
             if (p.isHollow) {
                 // Draw enemy shape outline particle
-                ctx.shadowColor = p.color;
-                ctx.shadowBlur = 8 * scale;
+                if (!skipShadows) {
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 8 * scale;
+                }
+                
                 ctx.beginPath();
-
                 const s = p.size * scale;
                 switch (p.shape) {
                     case 'triangle': polygon(p.x, p.y, s, 3, -Math.PI / 2); break;
@@ -2114,30 +2127,37 @@
                 ctx.lineWidth = 2.5 * scale;
                 ctx.stroke();
 
-                // White core (strong glow)
-                ctx.shadowColor = '#ffffff';
-                ctx.shadowBlur = 1 * scale;
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.0 * scale;
-                ctx.stroke();
+                // White core (strong glow) - на мобильных пропускаем второй проход для скорости
+                if (!skipShadows) {
+                    ctx.shadowColor = '#ffffff';
+                    ctx.shadowBlur = 1 * scale;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.0 * scale;
+                    ctx.stroke();
+                }
             } else {
                 // Regular particles
                 const currentSize = p.size * alpha * scale;
-                ctx.shadowColor = p.color;
-                ctx.shadowBlur = 10 * scale;
+                
+                if (!skipShadows) {
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 10 * scale;
+                }
+                
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, currentSize, 0, Math.PI * 2);
-
                 ctx.fillStyle = p.color;
                 ctx.fill();
 
-                // Bright white center with glow
-                ctx.shadowColor = '#ffffff';
-                ctx.shadowBlur = 12 * scale;
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, currentSize * 0.5, 0, Math.PI * 2);
-                ctx.fill();
+                // Bright white center with glow - только на ПК или если мало частиц
+                if (!skipShadows) {
+                    ctx.shadowColor = '#ffffff';
+                    ctx.shadowBlur = 12 * scale;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, currentSize * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
             ctx.restore();
@@ -2146,6 +2166,9 @@
 
     // ── Draw damage numbers ────────────────────────────────
     function drawDamageNumbers() {
+        // Пропускаем тени для текста, если чисел слишком много (особенно на мобильных)
+        const skipShadows = isMobile && (damageNumbers.length > 5);
+        
         for (const d of damageNumbers) {
             ctx.save();
             const alpha = d.life / d.maxLife;
@@ -2157,9 +2180,11 @@
             ctx.font = `bold ${fontSize}px Orbitron`;
 
             ctx.textAlign = 'center';
-            ctx.shadowColor = d.color;
-            // Свечение тоже затухает вместе с альфой для плавного исчезновения
-            ctx.shadowBlur = (d.isCrit ? 12 : 6) * scale * alpha;
+            if (!skipShadows) {
+                ctx.shadowColor = d.color;
+                // Свечение тоже затухает вместе с альфой для плавного исчезновения
+                ctx.shadowBlur = (d.isCrit ? 12 : 6) * scale * alpha;
+            }
             ctx.fillText(d.text, d.x, d.y);
             ctx.restore();
         }
@@ -2357,18 +2382,27 @@
                 ctx.beginPath();
                 const rCore = eff.radius * (0.1 + progress * 0.9);
                 ctx.arc(eff.x, eff.y, rCore * 0.6, 0, Math.PI * 2);
-                const gradient = ctx.createRadialGradient(eff.x, eff.y, 0, eff.x, eff.y, rCore * 0.6);
-                gradient.addColorStop(0, '#FFFFFF');
-                gradient.addColorStop(0.4, eff.color);
-                gradient.addColorStop(1, 'transparent');
-                ctx.fillStyle = gradient;
-                ctx.shadowBlur = 40 * alpha;
-                ctx.shadowColor = eff.color;
-                ctx.globalAlpha = alpha;
-                ctx.fill();
+                
+                // Оптимизация градиента: только если не совсем прозрачный
+                if (alpha > 0.1) {
+                    const gradient = ctx.createRadialGradient(eff.x, eff.y, 0, eff.x, eff.y, rCore * 0.6);
+                    gradient.addColorStop(0, '#FFFFFF');
+                    gradient.addColorStop(0.4, eff.color);
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    
+                    // На мобильных уменьшаем shadowBlur для основной вспышки
+                    ctx.shadowBlur = (isMobile ? 20 : 40) * alpha;
+                    ctx.shadowColor = eff.color;
+                    ctx.globalAlpha = alpha;
+                    ctx.fill();
+                }
 
                 // 2. Осколки (Shatter particles)
                 if (eff.shards) {
+                    // Сбрасываем тень для осколков — это главная причина тормозов!
+                    ctx.shadowBlur = 0;
+                    
                     eff.shards.forEach(sh => {
                         const dist = sh.speed * progress;
                         const sx = eff.x + Math.cos(sh.angle) * dist;
@@ -2379,10 +2413,8 @@
                         ctx.rotate(sh.angle + progress * 5); // Вращение осколков
                         ctx.beginPath();
                         ctx.strokeStyle = lifePct > 0.4 ? '#FFFFFF' : eff.color;
-                        ctx.lineWidth = 2 * alpha;
-                        ctx.shadowBlur = 25 * alpha;
-                        ctx.shadowColor = eff.color;
-
+                        ctx.lineWidth = 1.5 * alpha; // Уменьшена толщина на мобильных
+                        
                         // Рисуем маленькую геометрическую фигуру (осколок)
                         const s = sh.size * alpha;
                         if (sh.shape === 0) { // Треугольник
@@ -2402,12 +2434,13 @@
                     });
                 }
 
-                // 3. Световые лучи (вспышка)
+                // 3. Световые лучи (вспышка) - меньше лучей на мобильных
                 ctx.shadowBlur = 0;
                 ctx.strokeStyle = '#FFFFFF';
                 ctx.lineWidth = 1 * alpha;
-                for (let i = 0; i < 12; i++) {
-                    const angle = (i / 12) * Math.PI * 2 + progress * 0.2;
+                const rayCount = isMobile ? 8 : 12;
+                for (let i = 0; i < rayCount; i++) {
+                    const angle = (i / rayCount) * Math.PI * 2 + progress * 0.2;
                     const len = eff.radius * (0.3 + progress * 1.0);
                     ctx.beginPath();
                     ctx.moveTo(eff.x, eff.y);
@@ -2742,7 +2775,8 @@
         const shards = [];
         // Коэффициент масштабирования осколков: скорость и размер зависят от размера арены
         const shardScale = arenaSize / 400;
-        for (let i = 0; i < 60; i++) {
+        const shardCount = isMobile ? 24 : 60; // Меньше осколков на мобильных
+        for (let i = 0; i < shardCount; i++) {
             shards.push({
                 angle: Math.random() * Math.PI * 2,
                 speed: (60 + Math.random() * 120) * shardScale, // скорость осколков масштабируется

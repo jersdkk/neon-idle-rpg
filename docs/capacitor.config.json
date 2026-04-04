@@ -1,0 +1,6 @@
+{
+  "appId": "com.jersdk.neon.idlerpg",
+  "appName": "Neon Idle RPG",
+  "webDir": ".",
+  "bundledWebRuntime": false
+}

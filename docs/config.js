@@ -37,8 +37,8 @@ const CONFIG = {
             { name: 'circle', baseHP: 30, xpMultiplier: 120.0, maxLevel: 45 },
             { name: 'triangle', baseHP: 40, xpMultiplier: 120.0, maxLevel: 65 },
             { name: 'diamond', baseHP: 50, xpMultiplier: 160.0, maxLevel: 100000 },
-            { name: 'pentagon', baseHP: 120, xpMultiplier: 250.0, essenceDrop: 1, minLevel: 3 },
-            { name: 'hexagon', baseHP: 150, xpMultiplier: 300.0, essenceDrop: 1, minLevel: 3 },
+            { name: 'pentagon', baseHP: 100, xpMultiplier: 250.0, essenceDrop: 1, minLevel: 3 },
+            { name: 'hexagon', baseHP: 130, xpMultiplier: 300.0, essenceDrop: 1, minLevel: 3 },
             // Новый тип врага — дропает ⚙️ Детали для апгрейда турелей (с 45 уровня)
             { name: 'gear', baseHP: 200, xpMultiplier: 200.0, essenceDrop: 1, gearDrop: 1, minLevel: 45 },
         ],
@@ -46,11 +46,11 @@ const CONFIG = {
         hpExponentCycles: [
             //           { maxLevel: 35, value: 1.14 },
             //          { maxLevel: 45, value: 1.24 },
-            { maxLevel: 5, value: 1.4 },
-            { maxLevel: 10, value: 0.8 },
+            { maxLevel: 5, value: 1.45 },
+            { maxLevel: 10, value: 1.0 },
             { maxLevel: 15, value: 0.7 },
-            { maxLevel: 20, value: 1.1 },
-            { maxLevel: 25, value: 1.25 },
+            { maxLevel: 20, value: 1.3 },
+            { maxLevel: 25, value: 1.15 },
             { maxLevel: 30, value: 1.2 },
             { maxLevel: 35, value: 1.15 },
             { maxLevel: 65, value: 1.30 },
@@ -91,8 +91,10 @@ const CONFIG = {
 
             timeoutSeconds: 30,
             hpExponentCycles: [
-                { maxLevel: 15, value: 1.80 },
-                { maxLevel: 35, value: 1.99 },
+                { maxLevel: 10, value: 1.80 },
+                { maxLevel: 15, value: 1.90 },
+                { maxLevel: 25, value: 2.05 },
+                { maxLevel: 35, value: 2.15 },
                 { maxLevel: 45, value: 2.20 },
                 { maxLevel: 65, value: 2.30 },
                 { maxLevel: 85, value: 2.50 },
@@ -146,7 +148,7 @@ const CONFIG = {
                 { id: 'skillLightning', label: 'Lightning Strike', type: 'skillLightning', maxLevel: 50, valuePerLevel: 100, costPerLevel: 1, costMultiplier: 2.5, gridOrder: 0, requires: null },
                 { id: 'skillCDR', label: 'Skill CDR', type: 'skillCDR', maxLevel: 15, valuePerLevel: 0.04, costPerLevel: 3, costMultiplier: 2, gridOrder: 1, requires: null },
                 { id: 'skillHaste', label: 'Attack Speedup', type: 'skillHaste', maxLevel: 50, valuePerLevel: 0.2, costPerLevel: 2, costMultiplier: 2.5, gridOrder: 2, requires: null },
-                { id: 'skillPower', label: 'Damage Increase', type: 'skillPower', maxLevel: 50, valuePerLevel: 0.3, costPerLevel: 2, costMultiplier: 2, gridOrder: 3, requires: null },
+                { id: 'skillPower', label: 'Damage Increase', type: 'skillPower', maxLevel: 50, valuePerLevel: 0.2, costPerLevel: 2, costMultiplier: 2, gridOrder: 3, requires: null },
                 { id: 'skillGrenade', label: 'Grenade', type: 'skillGrenade', maxLevel: 50, valuePerLevel: 150, costPerLevel: 5, costMultiplier: 2.5, gridOrder: 4, requires: null },
             ]
         },

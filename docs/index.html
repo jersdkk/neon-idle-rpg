@@ -3,30 +3,23 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Neon RPG — Auto Combat</title>
   <meta name="description" content="Neon-style auto-combat RPG game with geometric enemies">
   <link rel="stylesheet" href="style.css">
 
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0M94KXCZ3B"></script>
   <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-
+    // Проверка, запущено ли приложение через Capacitor (т.е. как мобильное приложение)
+    const isNativeApp = !!window.Capacitor || (window.location.protocol === 'capacitor:');
     const isIframe = window.self !== window.top;
-    gtag('config', 'G-0M94KXCZ3B', {
-      'custom_map': { 'dimension1': 'environment' },
-      'environment': isIframe ? 'itch_io_iframe' : 'direct_github'
-    });
 
-    // Хелпер для трекинга событий сразу в обе системы (GA + Yandex)
+    console.log(`[Environment] Native: ${isNativeApp}, Iframe: ${isIframe}`);
+
+    // Хелпер для трекинга событий (GA + Yandex)
     window.gtag_game_event = function (eventName, eventParams) {
-      console.log(`[Analytics Event] ${eventName}`, eventParams);
-      // Google Analytics
-      if (typeof gtag === 'function') {
-        gtag('event', eventName, eventParams);
+      if (isNativeApp) {
+        console.log(`[Analytics Native Skip] ${eventName}`, eventParams);
+        return; // Пропускаем внешнюю аналитику в приложении для стабильности
       }
       // Yandex Metrika
       if (typeof ym === 'function') {
@@ -35,33 +28,40 @@
     };
   </script>
 
-  <!-- Yandex.Metrika counter -->
-  <script type="text/javascript">
-    (function (m, e, t, r, i, k, a) {
-      m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
-      m[i].l = 1 * new Date();
-      for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
-      k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
-    })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=108173823', 'ym');
+  <!-- Подгружаем внешние скрипты только если мы в браузере -->
+  <script>
+    if (!isNativeApp) {
+      // 1. Google Analytics
+      const gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-0M94KXCZ3B';
+      document.head.appendChild(gaScript);
 
-    ym(108173823, "init", {
-      clickmap: true,
-      trackLinks: true,
-      accurateTrackBounce: true,
-      webvisor: true,
-      userParams: {
-        environment: (window.self !== window.top ? 'itch_io_iframe' : 'direct_github')
-      }
-    });
-    console.log("[YM] Counter 108173823 initialized.");
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-0M94KXCZ3B', {
+        'custom_map': { 'dimension1': 'environment' },
+        'environment': isIframe ? 'itch_io_iframe' : 'direct_github'
+      });
+
+      // 2. Yandex.Metrika
+      (function (m, e, t, r, i, k, a) {
+        m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
+        m[i].l = 1 * new Date();
+        for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
+        k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+      })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=108173823', 'ym');
+
+      ym(108173823, "init", {
+        clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true,
+        userParams: { environment: (isIframe ? 'itch_io_iframe' : 'direct_github') }
+      });
+    }
   </script>
-  <noscript>
-    <div><img src="https://mc.yandex.ru/watch/108173823" style="position:absolute; left:-9999px;" alt="" /></div>
-  </noscript>
-  <!-- /Yandex.Metrika counter -->
 
-  <!-- CrazyGames SDK v3 -->
-  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+  <!-- Подключаем CrazyGames Wrapper (статичный тег для надежности) -->
+  <script src="crazygames.js"></script>
 </head>
 
 <body>
@@ -464,7 +464,7 @@
 
   <!-- ══ Панель отладки (Debug) ══ -->
   <!--<div id="debug-panel" style="display: none;"></div>-->
-  <div id="debug-panel"> <!--style="display: none;"-->
+  <div id="debug-panel" style="display: none;"> <!--style="display: none;"-->
     <button id="btn-dbg-next-level">Next Lvl</button>
     <button id="btn-dbg-plus-50">+50 Lvl</button>
     <button id="btn-dbg-lvl-35">Lvl 35</button>
@@ -562,7 +562,6 @@
   <script src="prestige.js"></script>
   <script src="turrets.js"></script>
   <script src="uber_bosses_map.js"></script>
-  <script src="crazygames.js?v=2"></script>
 </body>
 
 </html>
